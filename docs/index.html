@@ -1,0 +1,1432 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Plan a bento placemat layout for an exhibition table, set elevations, and generate laser-ready fold-up riser templates.">
+<title>Bento Table Planner</title>
+<style>
+  :root { color-scheme: light dark; }
+  html, body { margin: 0; }
+  body { font: 14px system-ui, -apple-system, sans-serif; }
+  img { max-width: 100%; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<title>Bento Table Planner</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=Asap:wght@400;500&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ground:#eef0ec; --surface:#f8f9f7; --surface-2:#e2e6e0; --sunk:#dfe3dd;
+  --ink:#191c19; --ink-2:#4c524b; --ink-3:#7c847a;
+  --line:#ccd1c8; --line-2:#b7bdb3;
+  --cut:#c3332b; --score:#2f63c2; --accent:#8a6a1f; --good:#3d7a48;
+  --board:#e9ece7; --grid:#c6ccc2;
+  --l0:#e4e8e2; --l1:#dcd3b4; --l2:#c9b881; --l3:#b09a4f;
+  --sel:#8a6a1f;
+  --r:3px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#1b1e1b; --surface:#232723; --surface-2:#2b302b; --sunk:#141714;
+    --ink:#e6e9e4; --ink-2:#a7afa4; --ink-3:#7b837a;
+    --line:#373e37; --line-2:#4a524a;
+    --cut:#e8564c; --score:#7aa4f2; --accent:#d4ac57; --good:#6cbc7c;
+    --board:#2f342f; --grid:#3d443d;
+    --l0:#343a34; --l1:#5a5334; --l2:#8a7b41; --l3:#c0a655;
+    --sel:#d4ac57;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#1b1e1b; --surface:#232723; --surface-2:#2b302b; --sunk:#141714;
+  --ink:#e6e9e4; --ink-2:#a7afa4; --ink-3:#7b837a;
+  --line:#373e37; --line-2:#4a524a;
+  --cut:#e8564c; --score:#7aa4f2; --accent:#d4ac57; --good:#6cbc7c;
+  --board:#2f342f; --grid:#3d443d;
+  --l0:#343a34; --l1:#5a5334; --l2:#8a7b41; --l3:#c0a655;
+  --sel:#d4ac57;
+}
+*{box-sizing:border-box}
+body{background:var(--ground); color:var(--ink); font-family:"Asap",system-ui,sans-serif;
+  font-size:14px; line-height:1.5; margin:0; -webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:"Archivo Narrow","Arial Narrow",sans-serif}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace; font-variant-numeric:tabular-nums}
+.wrap{max-width:1460px; margin:0 auto; padding:18px 20px 52px}
+
+header{display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 16px; padding-bottom:10px; border-bottom:2px solid var(--ink)}
+h1{font-size:25px; font-weight:700; margin:0}
+header .sub{color:var(--ink-2); font-size:13.5px; max-width:64ch; margin:0}
+
+/* ---------- setup rail ---------- */
+.setup{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin-top:16px}
+@media (max-width:900px){.setup{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.card{background:var(--surface); border:1px solid var(--line-2); border-top:3px solid var(--line-2);
+  border-radius:var(--r); padding:8px 11px 10px}
+.card .k{font-family:"Archivo Narrow",sans-serif; font-size:10.5px; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--ink-3)}
+.card select,.card .row{width:100%; margin-top:4px}
+select,input[type=number]{font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums;
+  font-size:13px; padding:4px 6px; color:var(--ink); background:var(--surface-2);
+  border:1px solid var(--line-2); border-radius:var(--r); width:100%}
+select{font-family:"Asap",sans-serif}
+.card .row{display:flex; gap:6px; align-items:center}
+.card .n{font-size:11px; color:var(--ink-3); margin-top:3px; font-family:"IBM Plex Mono",monospace}
+
+/* ---------- main split ---------- */
+.main{display:grid; grid-template-columns:minmax(0,1fr) 296px; gap:16px; margin-top:16px; align-items:start}
+@media (max-width:1060px){.main{grid-template-columns:1fr}}
+.panel{background:var(--surface); border:1px solid var(--line); border-radius:var(--r); overflow:hidden}
+.phead{display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:8px 12px;
+  border-bottom:1px solid var(--line); background:var(--surface-2)}
+.phead h2{font-size:14.5px; font-weight:600; margin:0}
+.phead .note{font-size:11.5px; color:var(--ink-3); margin-left:auto}
+.stage{padding:12px; background:var(--sunk); overflow-x:auto}
+.stage svg{display:block; margin:0 auto; max-width:100%; height:auto}
+#plan{touch-action:none; cursor:crosshair; user-select:none}
+
+/* ---------- inspector ---------- */
+.side{display:flex; flex-direction:column; gap:12px}
+.ins{padding:12px}
+.ins .big{font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums;
+  font-size:19px; font-weight:600; line-height:1.2}
+.ins .m{font-size:12px; color:var(--ink-2); margin-top:2px}
+.levels{display:grid; grid-template-columns:repeat(4,1fr); gap:5px; margin-top:10px}
+.lv{cursor:pointer; border:1px solid var(--line-2); border-radius:var(--r); padding:7px 4px;
+  background:var(--surface-2); color:var(--ink); text-align:center; font-family:"IBM Plex Mono",monospace}
+.lv .sw{display:block; height:5px; border-radius:2px; margin-bottom:5px}
+.lv[data-l="0"] .sw{background:var(--l0)} .lv[data-l="1"] .sw{background:var(--l1)}
+.lv[data-l="2"] .sw{background:var(--l2)} .lv[data-l="3"] .sw{background:var(--l3)}
+.lv .t{font-size:13px; font-weight:500} .lv .h{font-size:10px; color:var(--ink-3)}
+.lv[aria-pressed="true"]{border-color:var(--ink); background:var(--ink); color:var(--ground)}
+.lv[aria-pressed="true"] .h{color:var(--surface-2)}
+.lv:disabled{opacity:.4; cursor:default}
+.tools{display:flex; flex-wrap:wrap; gap:5px; margin-top:10px}
+.btn{font-family:"Archivo Narrow",sans-serif; font-size:12.5px; letter-spacing:.03em;
+  padding:6px 11px; cursor:pointer; border-radius:var(--r);
+  background:var(--ink); color:var(--ground); border:1px solid var(--ink)}
+.btn.ghost{background:transparent; color:var(--ink); border-color:var(--line-2)}
+.btn:disabled{opacity:.35; cursor:default}
+.btn:hover:not(:disabled){opacity:.87}
+.hint{font-size:11.5px; color:var(--ink-3); margin-top:9px; line-height:1.45}
+kbd{font-family:"IBM Plex Mono",monospace; font-size:10.5px; border:1px solid var(--line-2);
+  border-radius:2px; padding:0 3px; background:var(--surface-2); color:var(--ink-2)}
+
+/* ---------- stats ---------- */
+.stats{display:flex; flex-wrap:wrap}
+.stats .c{flex:1 1 auto; min-width:96px; padding:9px 12px; border-right:1px solid var(--line);
+  border-top:1px solid var(--line)}
+.stats .c:last-child{border-right:0}
+.stats .k{font-family:"Archivo Narrow",sans-serif; font-size:10px; letter-spacing:.11em;
+  text-transform:uppercase; color:var(--ink-3)}
+.stats .v{font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums;
+  font-size:18px; font-weight:600; line-height:1.25}
+.stats .v small{font-size:11px; font-weight:400; color:var(--ink-2)}
+
+/* ---------- view tabs ---------- */
+.tabs{display:flex; gap:0; border:1px solid var(--line-2); border-radius:var(--r); overflow:hidden}
+.tabs button{font-family:"Archivo Narrow",sans-serif; font-size:12.5px; padding:5px 12px; border:0;
+  background:var(--surface); color:var(--ink-2); cursor:pointer; border-right:1px solid var(--line)}
+.tabs button:last-child{border-right:0}
+.tabs button[aria-pressed=true]{background:var(--ink); color:var(--ground); font-weight:600}
+
+/* ---------- collapsible output ---------- */
+details.out{margin-top:12px; border:1px solid var(--line); border-radius:var(--r); background:var(--surface)}
+details.out > summary{cursor:pointer; padding:9px 12px; font-family:"Archivo Narrow",sans-serif;
+  font-size:12px; font-weight:600; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-2);
+  display:flex; gap:10px; align-items:center}
+details.out > summary .tag{margin-left:auto; font-family:"IBM Plex Mono",monospace;
+  font-size:11.5px; letter-spacing:0; text-transform:none; color:var(--ink-3)}
+details.out[open] > summary{border-bottom:1px solid var(--line)}
+/* the template accordion doubles as the primary action, so it reads as a
+   button rather than another collapsed panel */
+details.out.cta{border-color:var(--ink-3); border-left:3px solid var(--accent)}
+details.out.cta > summary{padding:12px 14px; font-size:13px; letter-spacing:.08em}
+details.out.cta > summary .go::before{content:"▸ "; color:var(--accent)}
+details.out.cta[open] > summary .go::before{content:"▾ "}
+details.out.cta > summary:hover .go{color:var(--ink)}
+details.out.cta > summary .go{color:var(--ink); font-size:14px}
+.shcount{font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--ink-2);
+  letter-spacing:0; text-transform:none; white-space:nowrap}
+.outbody{padding:12px}
+.advgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(184px,1fr)); gap:9px 16px}
+.field{display:grid; grid-template-columns:1fr 72px; align-items:center; gap:8px}
+.field label{font-size:12.5px; color:var(--ink-2)} .field .u{font-size:11px; color:var(--ink-3)}
+
+.tbl{width:100%; border-collapse:collapse; font-size:13px}
+.tbl th{text-align:left; font-family:"Archivo Narrow",sans-serif; font-weight:600; font-size:11.5px;
+  letter-spacing:.05em; text-transform:uppercase; color:var(--ink-3); padding:6px 10px;
+  border-bottom:1px solid var(--line)}
+.tbl td{padding:5px 10px; border-bottom:1px solid var(--line); vertical-align:baseline}
+.tbl tr:last-child td{border-bottom:0}
+.tbl td.n{font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap}
+.tbl td.k{color:var(--ink-2)}
+.tbl tr.sel td{background:var(--surface-2)}
+.tbl tbody tr{cursor:pointer}
+.sw2{display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:6px; vertical-align:-1px}
+.sheets{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; align-items:center}
+textarea{width:100%; height:120px; font-family:"IBM Plex Mono",monospace; font-size:11px;
+  background:var(--sunk); color:var(--ink-2); border:1px solid var(--line); border-radius:var(--r); padding:8px}
+.legend{display:flex; flex-wrap:wrap; gap:12px; padding:7px 12px; border-top:1px solid var(--line);
+  font-size:11.5px; color:var(--ink-2)}
+.legend i{display:inline-block; width:14px; height:0; vertical-align:middle; margin-right:5px}
+.legend .k-cut i{border-top:2px solid var(--cut)}
+.legend .k-score i{border-top:2px dashed var(--score)}
+button:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+.foot{margin-top:20px; padding-top:12px; border-top:1px solid var(--line); font-size:12.5px; color:var(--ink-2)}
+.foot ul{margin:7px 0 0; padding-left:19px; max-width:78ch} .foot li{margin-bottom:4px} .foot b{color:var(--ink)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+<header>
+  <div>
+    <h1>Bento Table Planner</h1>
+    <p class="sub">Draw the placemat layout, set an elevation on each tile, then take the cut files off the back of it.</p>
+  </div>
+</header>
+
+<div class="setup">
+  <div class="card">
+    <div class="k">Material</div>
+    <select id="mat"></select>
+    <div class="n" id="matn"></div>
+  </div>
+  <div class="card">
+    <div class="k">Sheet or bed</div>
+    <select id="sheet"></select>
+    <div class="n" id="sheetn"></div>
+  </div>
+  <div class="card">
+    <div class="k">Column layout</div>
+    <div class="row">
+      <select id="layout"><option value="4">4 columns</option><option value="3">3 columns</option></select>
+      <select id="rowsn"><option value="2">2 rows</option><option value="3" selected>3 rows</option><option value="4">4 rows</option></select>
+    </div>
+    <div class="n" id="layoutn"></div>
+  </div>
+  <div class="card">
+    <div class="k">Table</div>
+    <div class="row">
+      <input type="number" id="tblW" value="60" step="1" aria-label="Table width, inches">
+      <input type="number" id="tblD" value="42" step="1" aria-label="Table depth, inches">
+    </div>
+    <div class="n">inches, width × depth</div>
+  </div>
+</div>
+
+<div class="main">
+  <div>
+    <section class="panel">
+      <div class="phead">
+        <h2>Plan</h2>
+        <span class="note">Drag empty grid to add · drag a tile to move · corner handles resize · click <b>L2 ▾</b> to set elevation</span>
+      </div>
+      <div class="stage" id="planstage"></div>
+      <div class="stats" id="stats"></div>
+    </section>
+
+    <section class="panel" style="margin-top:12px">
+      <div class="phead">
+        <h2>Preview</h2>
+        <div class="tabs" id="viewtabs">
+          <button type="button" data-v="iso" aria-pressed="true">Isometric</button>
+          <button type="button" data-v="front" aria-pressed="false">Front</button>
+          <button type="button" data-v="side" aria-pressed="false">Side</button>
+        </div>
+        <span class="note" id="viewnote"></span>
+      </div>
+      <div class="stage" id="viewstage"></div>
+    </section>
+  </div>
+
+  <div class="side">
+    <section class="panel">
+      <div class="phead"><h2 id="institle">Nothing selected</h2></div>
+      <div class="ins">
+        <div class="big" id="insbig">—</div>
+        <div class="m" id="insm">Drag a rectangle on the plan to add a placemat.</div>
+        <div class="levels" id="levels"></div>
+        <div class="tools">
+          <button class="btn ghost" id="dup" type="button">Duplicate</button>
+          <button class="btn ghost" id="del" type="button">Delete</button>
+          <button class="btn ghost" id="all" type="button">Select all</button>
+        </div>
+        <div class="tools">
+          <button class="btn ghost" id="fill" type="button">Fill grid</button>
+          <button class="btn ghost" id="bento" type="button">Bento preset</button>
+          <button class="btn ghost" id="clear" type="button">Clear</button>
+        </div>
+        <p class="hint">
+          On a tile: drag to move, corner handles to resize, the <b>L2 ▾</b> badge to
+          set elevation. Here or there: <kbd>0</kbd>–<kbd>3</kbd> elevation ·
+          <kbd>⌫</kbd> delete · <kbd>esc</kbd> deselect. Mat is a flat placemat, no riser.
+        </p>
+      </div>
+    </section>
+    <section class="panel">
+      <div class="phead"><h2>Elevation mix</h2></div>
+      <table class="tbl" id="mixtbl"></table>
+    </section>
+  </div>
+</div>
+
+<details class="out cta" id="d-sheets">
+  <summary>
+    <span class="go">Generate template</span>
+    <span class="tag" id="t-sheets"></span>
+  </summary>
+  <div class="outbody">
+    <div class="sheets" id="sheetnav"></div>
+    <div class="stage" id="sheetstage" style="border-radius:var(--r)"></div>
+    <div class="legend" style="border-top:1px solid var(--line); border-bottom:1px solid var(--line)">
+      <span class="k-cut"><i></i>Cut — through</span>
+      <span class="k-score"><i></i>Score — fold line, on the <b>inside</b> face</span>
+      <span style="margin-left:auto; color:var(--ink-3)">1:1 mm · layered CUT / SCORE / LABEL</span>
+    </div>
+    <div class="sheets" style="margin-top:10px">
+      <button class="btn" id="dl" type="button">Download this sheet</button>
+      <button class="btn ghost" id="cp" type="button">Copy SVG</button>
+      <button class="btn ghost" id="sh" type="button">Show source</button>
+      <span class="note" id="exhint" style="font-size:12px; color:var(--ink-3)"></span>
+    </div>
+    <textarea id="src" hidden readonly spellcheck="false"></textarea>
+  </div>
+</details>
+
+<details class="out" id="d-sku">
+  <summary>Riser schedule <span class="tag" id="t-sku"></span></summary>
+  <div class="outbody" style="padding:0"><table class="tbl" id="skutbl"></table></div>
+</details>
+
+<details class="out" id="d-cut">
+  <summary>Cut dimensions for the selected riser <span class="tag" id="t-cut"></span></summary>
+  <div class="outbody">
+    <div class="stage" id="netstage" style="border-radius:var(--r)"></div>
+    <div class="legend">
+      <span class="k-cut"><i></i>Cut — through</span>
+      <span class="k-score"><i></i>Score — fold line, on the <b>inside</b> face</span>
+    </div>
+    <table class="tbl" id="cuttbl" style="margin-top:8px"></table>
+  </div>
+</details>
+
+<details class="out" id="d-adv">
+  <summary>Grid, machine and construction</summary>
+  <div class="outbody">
+    <div class="advgrid">
+      <div class="field"><label for="cellW">4-col cell <span class="u">in</span></label><input type="number" id="cellW" value="14.33" step="0.01"></div>
+      <div class="field"><label for="cellW3">3-col cell <span class="u">in</span></label><input type="number" id="cellW3" value="19.25" step="0.01"></div>
+      <div class="field"><label for="cellD">Row height <span class="u">in</span></label><input type="number" id="cellD" value="13.25" step="0.01"></div>
+      <div class="field"><label for="gutter">Gutter <span class="u">in</span></label><input type="number" id="gutter" value="0.25" step="0.0625"></div>
+      <div class="field"><label for="e1">Elevation 1 <span class="u">in</span></label><input type="number" id="e1" value="1.5" step="0.125"></div>
+      <div class="field"><label for="e2">Elevation 2 <span class="u">in</span></label><input type="number" id="e2" value="3" step="0.125"></div>
+      <div class="field"><label for="e3">Elevation 3 <span class="u">in</span></label><input type="number" id="e3" value="4.5" step="0.125"></div>
+      <div class="field"><label for="t">Thickness <span class="u">mm</span></label><input type="number" id="t" value="1.5" step="0.1"></div>
+      <div class="field"><label for="kerf">Kerf <span class="u">mm</span></label><input type="number" id="kerf" value="0.15" step="0.01"></div>
+      <div class="field"><label for="tab">Glue tab <span class="u">mm</span></label><input type="number" id="tab" value="22" step="1"></div>
+      <div class="field"><label for="gap">Part spacing <span class="u">mm</span></label><input type="number" id="gap" value="3" step="0.5"></div>
+      <div class="field"><label for="BW">Bed clamp W <span class="u">in</span></label><input type="number" id="BW" value="32" step="0.5"></div>
+      <div class="field"><label for="BH">Bed clamp H <span class="u">in</span></label><input type="number" id="BH" value="40" step="0.5"></div>
+    </div>
+    <div style="margin-top:12px">
+      <div class="k" style="font-family:'Archivo Narrow',sans-serif; font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3)">Construction</div>
+      <div class="tabs" id="mode" style="margin-top:5px; max-width:420px">
+        <button type="button" data-v="auto" aria-pressed="true">Best per sheet</button>
+        <button type="button" data-v="one-piece" aria-pressed="false">One-piece</button>
+        <button type="button" data-v="band" aria-pressed="false">Panel + walls</button>
+      </div>
+    </div>
+  </div>
+</details>
+
+<div class="foot">
+  <b>Before you cut anything</b>
+  <ul>
+    <li><b>Score face-down, cut face-up.</b> Run the score pass with the show face against the bed so the crushed side ends up inside the finished riser.</li>
+    <li><b>Thickness is already accounted for.</b> Panel and wall heights are reduced so each folded riser's exterior matches its grid footprint exactly and its top lands on the stated elevation.</li>
+    <li><b>A 1.5 mm panel spanning over ~10 in will visibly sag</b> under real weight. Add the crossed ribs, or laminate a second panel underneath, before trusting it with hardware.</li>
+    <li><b>Level 0 tiles cut no riser</b> — they're the flat placemat, and only appear in the plan.</li>
+  </ul>
+</div>
+
+<div hidden>
+  <input type="number" id="W" value="14.33"><input type="number" id="D" value="13.25">
+  <input type="number" id="H" value="3">
+  <input type="number" id="SW" value="32"><input type="number" id="SH" value="40">
+</div>
+</div>
+
+<script>
+"use strict";
+const MM = 25.4, EPS = 1e-7;
+const inch = v => v * MM, toIn = v => v / MM, sqIn = mm2 => mm2 / 645.16;
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+const MATERIALS = {
+  "matboard 4-ply": {t:1.5, sheet:"Matboard 32 × 40", note:"score 40–50% power on the back face"},
+  "matboard 2-ply": {t:1.0, sheet:"Matboard 32 × 40", note:"2-ply folds easily; score lightly"},
+  "museum 8-ply":   {t:3.0, sheet:"Matboard 32 × 40", note:"resists folding — double-score or v-groove"},
+  "chipboard 2 mm": {t:2.0, sheet:"Chipboard 30 × 40", note:"score deep, ~60% of thickness"},
+  "bristol 0.5 mm": {t:0.5, sheet:"Bristol 23 × 29", note:"mockups only above ~2 in tall"},
+};
+const SHEETS = {
+  "Matboard 32 × 40":  [32,40], "Matboard 40 × 60": [40,60],
+  "Chipboard 30 × 40": [30,40], "Bristol 23 × 29":  [23,29],
+  "Ply 24 × 48":       [24,48],
+  "Glowforge Pro bed": [19.5,11], "Epilog Fusion 32 bed": [32,20],
+  "Generic 24 × 18 bed":[24,18], "Thunder Nova 24 bed": [51,35], "Boss LS-1416 bed":[16,14],
+};
+
+/* ============================ geometry ============================ */
+function spec(over = {}){
+  const t = +$("t").value, kerf = +$("kerf").value;
+  const s = {
+    wExt: inch(over.wIn ?? +$("W").value), dExt: inch(over.dIn ?? +$("D").value),
+    height: inch(over.heightIn ?? +$("H").value),
+    t, kerf, tabW: +$("tab").value, taper: 2.0, slit: 0.4, relief: 1.5,
+  };
+  s.wp = s.wExt - 2*t; s.dp = s.dExt - 2*t; s.hf = s.height - t; s.cc = t;
+  s.tab = Math.max(0, Math.min(s.tabW, s.hf - s.slit - 1));
+  return s;
+}
+function problems(s){
+  const e = [];
+  if (s.wp <= 0 || s.dp <= 0) e.push(`Footprint too small for ${s.t} mm stock.`);
+  if (s.hf <= s.t + s.slit + s.relief)
+    e.push(`Too short to fold — needs at least ${toIn(2*s.t+s.slit+s.relief+3).toFixed(2)} in.`);
+  else if (s.tab < 6) e.push(`No room for a glue tab (${s.tab.toFixed(1)} mm).`);
+  return e;
+}
+function net(s){
+  const {wp, dp, hf, t, cc, tab, slit:g, relief:br, taper:tp} = s;
+  const P = [
+    [0,-hf],[wp,-hf],
+    [wp,-hf+br],[wp+tab,-hf+br+tp],[wp+tab,-t-g-tp],[wp,-t-g],[wp,-cc],[wp+hf,-cc],
+    [wp+hf,dp+cc],[wp,dp+cc],
+    [wp,dp+t+g],[wp+tab,dp+t+g+tp],[wp+tab,dp+hf-br-tp],[wp,dp+hf-br],[wp,dp+hf],
+    [0,dp+hf],
+    [0,dp+hf-br],[-tab,dp+hf-br-tp],[-tab,dp+t+g+tp],[0,dp+t+g],[0,dp+cc],[-hf,dp+cc],
+    [-hf,-cc],[0,-cc],
+    [0,-t-g],[-tab,-t-g-tp],[-tab,-hf+br+tp],[0,-hf+br],
+  ];
+  const S = [
+    [[-cc,0],[wp+cc,0]], [[-cc,dp],[wp+cc,dp]],
+    [[0,-cc],[0,dp+cc]], [[wp,-cc],[wp,dp+cc]],
+    [[0,-hf+br],[0,-t-g]], [[wp,-hf+br],[wp,-t-g]],
+    [[0,dp+t+g],[0,dp+hf-br]], [[wp,dp+t+g],[wp,dp+hf-br]],
+  ];
+  const sh = pts => pts.map(([x,y]) => [x+hf, y+hf]);
+  return {cut:[sh(P)], score:S.map(sh), size:[wp+2*hf, dp+2*hf], kind:"net", label:"top panel"};
+}
+const rect = (w,h,label) => ({cut:[[[0,0],[w,0],[w,h],[0,h]]], score:[], size:[w,h], kind:"rect", label});
+function scheme(s, sheet){
+  const runA = s.wExt - 2*s.t, runB = s.dExt - 2*s.t;
+  const limit = Math.max(sheet[0], sheet[1]) - 12;
+  if (s.t + runA + runB + s.t + s.tab <= limit) return "L2";
+  if (Math.max(s.wExt, runB + 2*s.tab) <= limit) return "W4";
+  return "W4S";
+}
+function bandParts(s, sheet){
+  const sc = scheme(s, sheet), {t, hf, tab, relief:br} = s;
+  const runA = s.wExt - 2*t, runB = s.dExt - 2*t;
+  const out = [rect(s.wExt, s.dExt, "top panel")];
+  if (sc === "L2"){
+    const foldAt = t + runA, x0 = t + runA + runB + t, len = x0 + tab;
+    for (let i=1;i<=2;i++) out.push({
+      cut:[[[0,0],[x0,0],[len,br],[len,hf-br],[x0,hf],[0,hf]]],
+      score:[[[foldAt,0],[foldAt,hf]],[[x0,0],[x0,hf]]],
+      size:[len,hf], kind:"L", label:`L wall ${i}`});
+  } else if (sc === "W4"){
+    out.push(rect(s.wExt, hf, "long wall 1"), rect(s.wExt, hf, "long wall 2"));
+    const len = runB + 2*tab, a = tab, b = tab + runB;
+    for (let i=1;i<=2;i++) out.push({
+      cut:[[[a,0],[b,0],[len,br],[len,hf-br],[b,hf],[a,hf],[0,hf-br],[0,br]]],
+      score:[[[a,0],[a,hf]],[[b,0],[b,hf]]],
+      size:[len,hf], kind:"E", label:`end wall ${i}`});
+  } else {
+    for (let i=1;i<=4;i++) out.push(rect(s.wExt/2, hf, `half wall ${i}`));
+    const len = runB + 2*tab, a = tab, b = tab + runB;
+    for (let i=1;i<=2;i++) out.push({
+      cut:[[[a,0],[b,0],[len,br],[len,hf-br],[b,hf],[a,hf],[0,hf-br],[0,br]]],
+      score:[[[a,0],[a,hf]],[[b,0],[b,hf]]],
+      size:[len,hf], kind:"E", label:`end wall ${i}`});
+    out.push(rect(Math.min(80,hf*2), hf-2*br, "splice"), rect(Math.min(80,hf*2), hf-2*br, "splice"));
+  }
+  out.scheme = sc;
+  return out;
+}
+function ribs(s){
+  const h = s.hf - 0.6, slot = Math.max(0.2, s.t - s.kerf), out = [];
+  [[s.wp-0.6,"rib A",true],[s.dp-0.6,"rib B",false]].forEach(([len,label,top])=>{
+    const cx = len/2, d = h/2;
+    const poly = top
+      ? [[0,0],[cx-slot/2,0],[cx-slot/2,d],[cx+slot/2,d],[cx+slot/2,0],[len,0],[len,h],[0,h]]
+      : [[0,0],[len,0],[len,h],[cx+slot/2,h],[cx+slot/2,h-d],[cx-slot/2,h-d],[cx-slot/2,h],[0,h]];
+    out.push({cut:[poly], score:[], size:[len,h], kind:"rib", label});
+  });
+  return out;
+}
+
+/* ============================ nesting ============================ */
+function splitFree(f, u){
+  const [fx,fy,fw,fh]=f,[ux,uy,uw,uh]=u;
+  if (ux>=fx+fw-EPS||ux+uw<=fx+EPS||uy>=fy+fh-EPS||uy+uh<=fy+EPS) return [f];
+  const o=[];
+  if (uy>fy+EPS) o.push([fx,fy,fw,uy-fy]);
+  if (uy+uh<fy+fh-EPS) o.push([fx,uy+uh,fw,fy+fh-(uy+uh)]);
+  if (ux>fx+EPS) o.push([fx,fy,ux-fx,fh]);
+  if (ux+uw<fx+fw-EPS) o.push([ux+uw,fy,fx+fw-(ux+uw),fh]);
+  return o.filter(r=>r[2]>EPS&&r[3]>EPS);
+}
+function prune(rs){
+  return rs.filter((a,i)=>!rs.some((b,j)=>{
+    if (i===j) return false;
+    const inside = b[0]<=a[0]+EPS && b[1]<=a[1]+EPS &&
+                   b[0]+b[2]>=a[0]+a[2]-EPS && b[1]+b[3]>=a[1]+a[3]-EPS;
+    return inside && (b[2]>a[2]+EPS || b[3]>a[3]+EPS || j<i);
+  }) && a[2]>EPS && a[3]>EPS);
+}
+/* numeric tuple compare — `<` on arrays coerces to strings and would rank
+   [10,..] below [9,..], quietly ruining the placement choice */
+function tupLess(a, b){
+  for (let i=0;i<a.length;i++){
+    if (a[i] < b[i] - EPS) return true;
+    if (a[i] > b[i] + EPS) return false;
+  }
+  return false;
+}
+function pack(parts, sw, sh, margin=6, gap=3){
+  let free=[[margin,margin,sw-2*margin,sh-2*margin]];
+  const placed=[], left=[];
+  const order=[...parts.keys()].sort((a,b)=>{
+    const A=parts[a].size,B=parts[b].size;
+    return Math.max(...B)-Math.max(...A) || B[0]*B[1]-A[0]*A[1];
+  });
+  for (const i of order){
+    const p=parts[i], [pw,ph]=p.size;
+    const opts=[[pw,ph,false]]; if (Math.abs(pw-ph)>EPS) opts.push([ph,pw,true]);
+    let best=null;
+    for (const [fx,fy,fw,fh] of free) for (const [w,h,rot] of opts){
+      const aw=w+gap, ah=h+gap;
+      if (aw<=fw+EPS && ah<=fh+EPS){
+        const dw=fw-aw, dh=fh-ah;
+        const key=[Math.min(dw,dh),Math.max(dw,dh),fy,fx];
+        if (!best || tupLess(key, best.key)) best={key,x:fx,y:fy,w,h,rot};
+      }
+    }
+    if (!best){ left.push(p); continue; }
+    placed.push({part:p,x:best.x,y:best.y,w:best.w,h:best.h,rot:best.rot});
+    free=prune(free.flatMap(f=>splitFree(f,[best.x,best.y,best.w+gap,best.h+gap])));
+  }
+  return {placed,left};
+}
+function perSheet(make, sheet, gap, cap=24){
+  let n=0, parts=[];
+  for (let i=0;i<cap;i++){
+    parts=parts.concat(make());
+    if (pack(parts, sheet[0], sheet[1], 6, gap).left.length) break;
+    n++;
+  }
+  return n;
+}
+function area(p){
+  return p.cut.reduce((tot,poly)=>{
+    let a=0;
+    for (let i=0;i<poly.length;i++){
+      const [x1,y1]=poly[i], [x2,y2]=poly[(i+1)%poly.length];
+      a += x1*y2 - x2*y1;
+    }
+    return tot + Math.abs(a)/2;
+  },0);
+}
+/* fill sheet after sheet until every part is placed */
+function nestAll(parts, sheet, gap, maxSheets = 60){
+  const sheets = [];
+  let rest = parts.slice();
+  while (rest.length && sheets.length < maxSheets){
+    const {placed} = pack(rest, sheet[0], sheet[1], 6, gap);
+    if (!placed.length) return {sheets, unplaced: rest};
+    sheets.push(placed);
+    const used = new Set(placed.map(pl => pl.part));
+    rest = rest.filter(p => !used.has(p));
+  }
+  return {sheets, unplaced: rest};
+}
+
+/* ============================ drawing helpers ============================ */
+const xf = (pts,pl) => pts.map(([x,y]) => pl.rot ? [pl.w-y+pl.x, x+pl.y] : [x+pl.x, y+pl.y]);
+const dstr = pts => pts.map(([x,y])=>`${x.toFixed(2)},${y.toFixed(2)}`).join(" ");
+
+/* Draw every piece a riser is cut from, side by side at one shared scale,
+   each with its own width callout and a caption naming it. A band-mode
+   riser's interesting part is the wall with its fold lines, so showing
+   only the biggest piece (a featureless top panel) would hide the work. */
+function drawParts(parts){
+  const SP = 26, padL = 26, padT = 26, padB = 58, padR = 26;
+  const g = [];
+  let cx = 0;
+  const maxH = Math.max(...parts.map(p => p.size[1]));
+
+  const wdim = (x1, x2, y, txt) => {
+    const c = "var(--ink-3)";
+    return `<g stroke="${c}" stroke-width="0.7" fill="none">
+      <path d="M${x1} ${y-6}V${y+7}"/><path d="M${x2} ${y-6}V${y+7}"/><path d="M${x1} ${y}H${x2}"/>
+      <path d="M${x1+5} ${y-2.5}L${x1} ${y}L${x1+5} ${y+2.5}"/>
+      <path d="M${x2-5} ${y-2.5}L${x2} ${y}L${x2-5} ${y+2.5}"/></g>
+      <text x="${(x1+x2)/2}" y="${y-8}" fill="var(--ink-2)" font-family="IBM Plex Mono,monospace"
+        font-size="11" text-anchor="middle">${txt}</text>`;
+  };
+
+  parts.forEach(p=>{
+    const [w,h] = p.size;
+    const off = pts => pts.map(([x,y])=>[x+cx, y]);
+    p.cut.forEach(poly=>g.push(`<polygon points="${dstr(off(poly))}" fill="var(--board)"
+      stroke="var(--cut)" stroke-width="1.1"/>`));
+    p.score.forEach(l=>g.push(`<polyline points="${dstr(off(l))}" fill="none"
+      stroke="var(--score)" stroke-width="1.1" stroke-dasharray="7 4.5"/>`));
+    g.push(wdim(cx, cx + w, maxH + 22, `${toIn(w).toFixed(2)}″`));
+    g.push(`<text x="${cx + w/2}" y="${maxH + 44}" text-anchor="middle" fill="var(--ink-2)"
+      font-family="IBM Plex Mono,monospace" font-size="11">${
+      toIn(w).toFixed(2)} × ${toIn(h).toFixed(2)}″</text>`);
+    g.push(`<text x="${cx + w/2}" y="${maxH + 57}" text-anchor="middle" fill="var(--ink-3)"
+      font-family="Asap,sans-serif" font-size="11">${esc(p.label)}</text>`);
+    cx += w + SP;
+  });
+
+  const totW = cx - SP;
+  return `<svg viewBox="${-padL} ${-padT} ${totW+padL+padR} ${maxH+padT+padB}"
+    width="${Math.min(620,(totW+padL+padR)*1.4)}" role="img"
+    aria-label="${parts.length} cut piece${parts.length===1?"":"s"}">${g.join("")}</svg>`;
+}
+function drawSheet(placed, sw, sh, wide=520){
+  const g = [`<rect x="0" y="0" width="${sw}" height="${sh}" fill="var(--board)" fill-opacity="0.25"
+    stroke="var(--line-2)" stroke-width="1.6" stroke-dasharray="7 5"/>`];
+  placed.forEach(pl=>{
+    pl.part.cut.forEach(p=>g.push(`<polygon points="${dstr(xf(p,pl))}" fill="var(--board)" stroke="var(--cut)" stroke-width="1.1"/>`));
+    pl.part.score.forEach(l=>g.push(`<polyline points="${dstr(xf(l,pl))}" fill="none" stroke="var(--score)" stroke-width="0.9" stroke-dasharray="6 4"/>`));
+  });
+  return `<svg viewBox="-8 -8 ${sw+16} ${sh+16}" width="${Math.min(wide, sw*1.1)}" role="img"
+    aria-label="Nesting layout, ${placed.length} parts">${g.join("")}</svg>`;
+}
+function exportSVG(placed, sw, sh){
+  const L = {CUT:[], SCORE:[], LABEL:[]};
+  L.LABEL.push(`<rect x="0" y="0" width="${sw.toFixed(3)}" height="${sh.toFixed(3)}" fill="none" stroke="#CCCCCC" stroke-width="0.2" stroke-dasharray="4 4"/>`);
+  placed.forEach(pl=>{
+    pl.part.cut.forEach(p=>L.CUT.push(`<polygon points="${dstr(xf(p,pl))}" fill="none" stroke="#FF0000" stroke-width="0.1"/>`));
+    pl.part.score.forEach(l=>L.SCORE.push(`<polyline points="${dstr(xf(l,pl))}" fill="none" stroke="#0000FF" stroke-width="0.1"/>`));
+    const [cx,cy] = xf([[pl.part.size[0]/2, pl.part.size[1]/2]], pl)[0];
+    L.LABEL.push(`<text x="${cx.toFixed(2)}" y="${cy.toFixed(2)}" font-family="Helvetica" font-size="6"
+      fill="none" stroke="#00A000" stroke-width="0.1" text-anchor="middle">${esc(pl.part.label)}</text>`);
+  });
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" version="1.1"
+  width="${sw.toFixed(3)}mm" height="${sh.toFixed(3)}mm" viewBox="0 0 ${sw.toFixed(3)} ${sh.toFixed(3)}">
+<title>risers</title>
+<desc>1:1 millimetres. CUT red, SCORE blue (fold lines), LABEL green. Score on the INSIDE face, then fold the walls down.</desc>
+${Object.entries(L).map(([k,v])=>`<g id="${k}" inkscape:groupmode="layer" inkscape:label="${k}">\n${v.join("\n")}\n</g>`).join("\n")}
+</svg>`;
+}
+
+/* ============================ the table grid ============================
+   Counted in HALF modules, because the bento layout splits cells. With a
+   half-unit h = (cell - gutter)/2, a run of k half-units measures
+   k*h + (k-1)*gutter — so k=2 returns exactly one cell.                  */
+const gut    = () => +$("gutter").value;
+const cellWv = () => LAY.layout === 4 ? +$("cellW").value : +$("cellW3").value;
+const cellDv = () => +$("cellD").value;
+const halfOf = cell => (cell - gut()) / 2;
+const spanHalf = (cell, k) => k * halfOf(cell) + (k - 1) * gut();
+const spanOf = (cell, s) => spanHalf(cell, 2 * s);
+const elevIn = l => l <= 0 ? 0 : +$(`e${l}`).value;
+
+const LAY = {layout:4, rows:3};
+const HC = () => LAY.layout * 2;          // half-columns across
+const HR = () => LAY.rows * 2;            // half-rows down
+const gridW = () => spanHalf(cellWv(), HC());
+const gridD = () => spanHalf(cellDv(), HR());
+const mgX = () => (+$("tblW").value - gridW()) / 2;
+const mgY = () => (+$("tblD").value - gridD()) / 2;
+const colX = k => mgX() + k * (halfOf(cellWv()) + gut());
+const rowY = k => mgY() + k * (halfOf(cellDv()) + gut());
+
+/* tiles are {x,y,w,h,elev} in half-module units */
+let TILES = [], SEL = new Set(), VIEW = "iso", MODE = "auto", SHEETIDX = 0, LAST = "";
+let OPENMENU = null;          // index of the tile whose elevation menu is open
+let MENUVIEW = "plan";        // which view opened it, so only that one draws it
+let ISOVB = null;             // the iso drawing's viewBox, for hit-testing
+
+/* Isometric projection and its exact inverse. The inverse needs the point's
+   height, because a screen position maps to a different table position at
+   each elevation — that's what makes dragging a raised tile land correctly. */
+const ISO = {C: 0.8660, S: 0.5, ZS: 1.25};
+const isoP = (x,y,z) => [(x - y) * ISO.C, (x + y) * ISO.S - z * ISO.ZS];
+const isoInv = (sx,sy,z) => {
+  const d = sx / ISO.C, s = (sy + z * ISO.ZS) / ISO.S;
+  return [(s + d) / 2, (s - d) / 2];
+};
+
+/* shared elevation control, drawn in whichever view asked for it */
+function elevBadge(i, x, y, elev){
+  const bw = 4.6, bh = 2.2;
+  return `<g class="lvbadge" data-i="${i}" style="cursor:pointer">
+    <rect x="${x.toFixed(3)}" y="${y.toFixed(3)}" width="${bw}" height="${bh}" rx="0.35"
+      fill="var(--surface)" fill-opacity="0.92" stroke="var(--ink-3)" stroke-width="0.12"/>
+    <text x="${(x+bw/2).toFixed(3)}" y="${(y+bh/2+0.05).toFixed(3)}" text-anchor="middle"
+      dominant-baseline="middle" font-family="IBM Plex Mono,monospace" font-size="1.3"
+      fill="var(--ink)" pointer-events="none">${elev ? "L"+elev : "Mat"} ▾</text></g>`;
+}
+function elevMenu(i, ax, ay, maxX, maxY){
+  const t = TILES[i]; if (!t) return "";
+  const mw = 9.4, ih = 2.5, mh = ih * 4 + 0.6;
+  const mx = Math.min(ax, maxX - mw - 0.5), my = Math.min(ay, maxY - mh - 0.5);
+  return `<g class="lvmenu">
+    <rect x="${mx.toFixed(3)}" y="${my.toFixed(3)}" width="${mw}" height="${mh}" rx="0.4"
+      fill="var(--surface)" stroke="var(--ink)" stroke-width="0.16"/>
+    ${[0,1,2,3].map(l=>{
+      const iy = my + 0.3 + l * ih, cur = t.elev === l;
+      return `<g class="lvitem" data-i="${i}" data-l="${l}" style="cursor:pointer">
+        <rect x="${(mx+0.25).toFixed(3)}" y="${iy.toFixed(3)}" width="${mw-0.5}" height="${ih-0.15}"
+          rx="0.3" fill="${cur?"var(--ink)":"transparent"}"/>
+        <rect x="${(mx+0.85).toFixed(3)}" y="${(iy+ih/2-0.55).toFixed(3)}" width="1.1" height="1.1"
+          rx="0.2" fill="var(--l${l})" pointer-events="none"/>
+        <text x="${(mx+2.5).toFixed(3)}" y="${(iy+ih/2).toFixed(3)}" dominant-baseline="middle"
+          font-family="IBM Plex Mono,monospace" font-size="1.3"
+          fill="${cur?"var(--ground)":"var(--ink)"}" pointer-events="none">${
+          l===0 ? "Mat  flat" : "L"+l+"  "+elevIn(l).toFixed(2)+"″"}</text></g>`;
+    }).join("")}</g>`;
+}
+const HSZ = 1.5;              // resize handle size, drawing units
+const handleSVG = (i, cx, cy, tag, cur) => `<rect class="handle" data-i="${i}" data-h="${tag}"
+  x="${(cx-HSZ/2).toFixed(3)}" y="${(cy-HSZ/2).toFixed(3)}" width="${HSZ}" height="${HSZ}"
+  fill="var(--sel)" stroke="var(--surface)" stroke-width="0.16" rx="0.2" style="cursor:${cur}"/>`;
+const overlaps = (a,b) => a.x < b.x+b.w && b.x < a.x+a.w && a.y < b.y+b.h && b.y < a.y+a.h;
+const fitsGrid = t => t.x >= 0 && t.y >= 0 && t.x+t.w <= HC() && t.y+t.h <= HR();
+function canPlace(t, ignore = null){
+  return fitsGrid(t) && !TILES.some(o => o !== ignore && overlaps(o, t));
+}
+const tileW = t => spanHalf(cellWv(), t.w);
+const tileD = t => spanHalf(cellDv(), t.h);
+
+function presetBento(){
+  /* a plausible starting layout: full cells, half splits and a double span,
+     with elevations stepping back across the table */
+  const T = [];
+  const add = (x,y,w,h,elev) => { const t={x,y,w,h,elev}; if (canPlaceIn(T,t)) T.push(t); };
+  const canPlaceIn = (arr,t) => t.x>=0&&t.y>=0&&t.x+t.w<=HC()&&t.y+t.h<=HR()&&!arr.some(o=>overlaps(o,t));
+  add(0,0,2,2,1); add(2,0,2,1,2); add(2,1,2,1,0);
+  add(4,0,2,3,3); add(6,0,2,2,1);
+  add(0,2,2,2,0); add(2,2,2,2,2); add(6,2,2,1,0); add(6,3,2,1,1);
+  add(0,4,2,2,2); add(2,4,4,2,0); add(6,4,2,2,3);
+  return T;
+}
+function presetFill(){
+  const T = [];
+  for (let y=0; y<HR(); y+=2) for (let x=0; x<HC(); x+=2) T.push({x,y,w:2,h:2,elev:1});
+  return T;
+}
+
+/* ============================ plan view ============================ */
+function drawPlan(){
+  const TW = +$("tblW").value, TD = +$("tblD").value;
+  const g = [];
+  g.push(`<rect x="0" y="0" width="${TW}" height="${TD}" fill="var(--surface-2)"
+    stroke="var(--ink-3)" stroke-width="0.22" rx="0.4"/>`);
+  // grid cells, half-module resolution
+  for (let x=0; x<HC(); x++) for (let y=0; y<HR(); y++){
+    g.push(`<rect x="${colX(x).toFixed(3)}" y="${rowY(y).toFixed(3)}"
+      width="${halfOf(cellWv()).toFixed(3)}" height="${halfOf(cellDv()).toFixed(3)}"
+      fill="none" stroke="var(--grid)" stroke-width="0.1" stroke-dasharray="0.5 0.4"/>`);
+  }
+  // tiles
+  const HS = 1.5;                          // resize handle size, inches
+  TILES.forEach((t,i)=>{
+    const x = colX(t.x), y = rowY(t.y), w = tileW(t), d = tileD(t);
+    const on = SEL.has(i);
+    const parts = [];
+    parts.push(`<rect class="body" x="${x.toFixed(3)}" y="${y.toFixed(3)}"
+      width="${w.toFixed(3)}" height="${d.toFixed(3)}"
+      fill="var(--l${t.elev})" stroke="${on?"var(--sel)":"var(--ink-3)"}"
+      stroke-width="${on?0.45:0.18}" rx="0.25" style="cursor:move"/>`);
+    parts.push(`<text x="${(x+w/2).toFixed(3)}" y="${(y+d/2).toFixed(3)}" text-anchor="middle"
+      dominant-baseline="middle" font-family="IBM Plex Mono,monospace" font-size="1.5"
+      fill="var(--ink)" opacity="0.7" pointer-events="none">${tileW(t).toFixed(2)}×${tileD(t).toFixed(2)}″</text>`);
+    parts.push(`<text x="${(x+w/2).toFixed(3)}" y="${(y+d/2+2).toFixed(3)}" text-anchor="middle"
+      font-family="IBM Plex Mono,monospace" font-size="1.05" fill="var(--ink-2)"
+      opacity="0.55" pointer-events="none">${t.w/2} × ${t.h/2} module</text>`);
+
+    /* the elevation control lives ON the tile: a badge that opens a menu */
+    parts.push(elevBadge(i, x + 0.35, y + 0.35, t.elev));
+
+    if (on){
+      const hx = x + w, hy = y + d;
+      parts.push(handleSVG(i, hx, y + d/2, "e", "ew-resize"));
+      parts.push(handleSVG(i, x + w/2, hy, "s", "ns-resize"));
+      parts.push(handleSVG(i, hx, hy, "se", "nwse-resize"));
+    }
+    g.push(`<g class="tile" data-i="${i}">${parts.join("")}</g>`);
+  });
+  if (DRAG.ghost){
+    const gh = DRAG.ghost;
+    const x = colX(gh.x), y = rowY(gh.y);
+    const w = spanHalf(cellWv(), gh.w), d = spanHalf(cellDv(), gh.h);
+    /* colour the ghost by whether it can actually land there, so dragging
+       onto an occupied cell reads as blocked instead of doing nothing */
+    const ok = canPlace(gh);
+    const c = ok ? "var(--accent)" : "var(--cut)";
+    g.push(`<rect x="${x.toFixed(3)}" y="${y.toFixed(3)}"
+      width="${w.toFixed(3)}" height="${d.toFixed(3)}"
+      fill="${c}" fill-opacity="${ok?0.2:0.14}" stroke="${c}" stroke-width="0.35"
+      stroke-dasharray="1 0.6" pointer-events="none"/>`);
+    g.push(`<text x="${(x+w/2).toFixed(3)}" y="${(y+d/2).toFixed(3)}" text-anchor="middle"
+      dominant-baseline="middle" font-family="IBM Plex Mono,monospace" font-size="1.4"
+      fill="${c}" pointer-events="none">${ok
+        ? `${gh.w/2}×${gh.h/2} · ${w.toFixed(2)}×${d.toFixed(2)}″` : "blocked"}</text>`);
+  }
+
+  /* the open elevation menu, drawn last so it sits above every tile */
+  if (OPENMENU !== null && MENUVIEW === "plan" && TILES[OPENMENU]){
+    const t = TILES[OPENMENU];
+    g.push(elevMenu(OPENMENU, colX(t.x) + 0.35, rowY(t.y) + 2.9, TW, TD));
+  }
+  return `<svg id="plan" viewBox="-1.4 -1.4 ${TW+2.8} ${TD+2.8}" width="${Math.min(880, TW*13)}"
+    role="application" aria-label="Table plan, ${TILES.length} placemats">${g.join("")}</svg>`;
+}
+
+/* table inches → half-cell index */
+function cellFromInches(ix, iy){
+  const stepX = halfOf(cellWv()) + gut(), stepY = halfOf(cellDv()) + gut();
+  const cx = Math.floor((ix - mgX()) / stepX), cy = Math.floor((iy - mgY()) / stepY);
+  return {x: Math.max(0, Math.min(HC()-1, cx)), y: Math.max(0, Math.min(HR()-1, cy))};
+}
+/* pointer → half-cell index, in the plan */
+function cellAt(evt){
+  const svg = $("plan"); if (!svg) return null;
+  const r = svg.getBoundingClientRect();
+  if (!r.width || !r.height) return null;
+  const TW = +$("tblW").value, TD = +$("tblD").value;
+  const ix = (evt.clientX - r.left) / r.width * (TW + 2.8) - 1.4;
+  const iy = (evt.clientY - r.top) / r.height * (TD + 2.8) - 1.4;
+  return cellFromInches(ix, iy);
+}
+/* pointer → half-cell index, in the isometric view. Needs the height of the
+   plane being picked, since one screen point maps to a different table
+   position at every elevation. */
+function cellAtIso(evt, z = 0){
+  const svg = $("isosvg"); if (!svg || !ISOVB) return null;
+  const r = svg.getBoundingClientRect();
+  if (!r.width || !r.height) return null;
+  const ux = (evt.clientX - r.left) / r.width * ISOVB[2] + ISOVB[0];
+  const uy = (evt.clientY - r.top) / r.height * ISOVB[3] + ISOVB[1];
+  const [ix, iy] = isoInv(ux, uy, z);
+  return cellFromInches(ix, iy);
+}
+/* One drag state for all three gestures. `mode` is "create" | "move" |
+   "resize"; `ghost` is the candidate tile, always validated before commit. */
+const DRAG = {on:false, mode:null, from:null, ghost:null, i:null, handle:null, orig:null, moved:false};
+
+/* ============================ elevation views ============================ */
+function drawView(){
+  const TW = +$("tblW").value, TD = +$("tblD").value;
+  const risers = TILES.filter(t=>t.elev > 0);
+  const maxH = Math.max(1, ...risers.map(t=>elevIn(t.elev)));
+
+  if (VIEW === "iso"){
+    const P = isoP;
+    const pts = [], g = [], overlay = [];
+    // table slab
+    const corners = [[0,0],[TW,0],[TW,TD],[0,TD]].map(([x,y])=>P(x,y,0));
+    corners.forEach(p=>pts.push(p));
+    g.push(`<polygon points="${dstr(corners)}" fill="var(--surface-2)" stroke="var(--ink-3)" stroke-width="0.25"/>`);
+    // grid, so an empty cell is a visible drop target here too
+    for (let cx=0; cx<HC(); cx++) for (let cy=0; cy<HR(); cy++){
+      const a = colX(cx), b = rowY(cy), a2 = a + halfOf(cellWv()), b2 = b + halfOf(cellDv());
+      g.push(`<polygon points="${dstr([P(a,b,0),P(a2,b,0),P(a2,b2,0),P(a,b2,0)])}"
+        fill="none" stroke="var(--grid)" stroke-width="0.09" stroke-dasharray="0.5 0.4"/>`);
+    }
+    // tiles, far to near
+    const order = TILES.slice().sort((a,b)=>(a.x+a.y)-(b.x+b.y));
+    order.forEach(t=>{
+      const i = TILES.indexOf(t), on = SEL.has(i);
+      const x1 = colX(t.x), y1 = rowY(t.y), x2 = x1 + tileW(t), y2 = y1 + tileD(t);
+      const z = elevIn(t.elev);
+      const top = [P(x1,y1,z),P(x2,y1,z),P(x2,y2,z),P(x1,y2,z)];
+      top.forEach(p=>pts.push(p));
+      const faces = [];
+      if (z > 0){
+        const right = [P(x2,y1,z),P(x2,y2,z),P(x2,y2,0),P(x2,y1,0)];
+        const front = [P(x1,y2,z),P(x2,y2,z),P(x2,y2,0),P(x1,y2,0)];
+        [right,front].forEach(p=>p.forEach(q=>pts.push(q)));
+        faces.push(`<polygon points="${dstr(right)}" fill="var(--l${t.elev})" fill-opacity="0.62"
+          stroke="${on?"var(--sel)":"var(--ink-3)"}" stroke-width="${on?0.34:0.18}"/>`);
+        faces.push(`<polygon points="${dstr(front)}" fill="var(--l${t.elev})" fill-opacity="0.8"
+          stroke="${on?"var(--sel)":"var(--ink-3)"}" stroke-width="${on?0.34:0.18}"/>`);
+      }
+      faces.push(`<polygon class="body" points="${dstr(top)}" fill="var(--l${t.elev})"
+        stroke="${on?"var(--sel)":"var(--ink-3)"}" stroke-width="${on?0.5:0.2}" style="cursor:move"/>`);
+
+      /* An unselected tile's badge rides inside its own group, so painter
+         order occludes it behind anything standing in front — a floating
+         badge would otherwise hover over a neighbour's face and swallow
+         clicks meant for it. Offset from the back corner rather than the
+         centroid, so the middle of the face stays grabbable for dragging.
+
+         The SELECTED tile's badge and handle go in the overlay instead, on
+         top of everything. A tall riser genuinely hides a flat mat behind
+         it in this projection, so without that a selected-but-occluded tile
+         would be uneditable here; select it anywhere (plan, schedule, mix)
+         and its controls surface in the isometric view too. */
+      /* Badge at the BACK corner, handle at the FRONT corner: the projection
+         separates those two points along its longest axis, so on a small
+         half-module tile the handle can't sit on top of the badge. */
+      const [bx,by] = P(x1 + tileW(t) * 0.16, y1 + tileD(t) * 0.16, z);
+      const badge = elevBadge(i, bx - 2.3, by - 0.6, t.elev);
+      if (!on) faces.push(badge);
+      g.push(`<g class="tile" data-i="${i}">${faces.join("")}</g>`);
+
+      if (on){
+        const [hx,hy] = P(x2, y2, z);
+        overlay.push(`<g class="tile" data-i="${i}">${
+          handleSVG(i, hx, hy, "se", "nwse-resize")}${badge}</g>`);
+      }
+    });
+
+    // drag ghost, in the plane of the tile being dragged
+    if (DRAG.on && DRAG.ghost && VIEW === "iso"){
+      const gh = DRAG.ghost;
+      const ok = canPlace(gh, DRAG.i != null ? TILES[DRAG.i] : null);
+      const c = ok ? "var(--accent)" : "var(--cut)";
+      const z = DRAG.mode === "create" ? 0 : elevIn(TILES[DRAG.i]?.elev ?? 0);
+      const a = colX(gh.x), b = rowY(gh.y);
+      const a2 = a + spanHalf(cellWv(), gh.w), b2 = b + spanHalf(cellDv(), gh.h);
+      overlay.push(`<polygon points="${dstr([P(a,b,z),P(a2,b,z),P(a2,b2,z),P(a,b2,z)])}"
+        fill="${c}" fill-opacity="0.24" stroke="${c}" stroke-width="0.4"
+        stroke-dasharray="1 0.6" pointer-events="none"/>`);
+    }
+
+    const xs = pts.map(p=>p[0]), ys = pts.map(p=>p[1]);
+    const pad = 4;
+    const vb = [Math.min(...xs)-pad, Math.min(...ys)-pad,
+                Math.max(...xs)-Math.min(...xs)+2*pad, Math.max(...ys)-Math.min(...ys)+2*pad];
+    ISOVB = vb;
+    if (OPENMENU !== null && MENUVIEW === "iso" && TILES[OPENMENU]){
+      const t = TILES[OPENMENU];
+      const [ax,ay] = P(colX(t.x) + tileW(t)/2, rowY(t.y) + tileD(t)/2, elevIn(t.elev));
+      overlay.push(elevMenu(OPENMENU, ax - 2.3, ay + 1.4, vb[0]+vb[2], vb[1]+vb[3]));
+    }
+    return `<svg id="isosvg" viewBox="${vb.map(v=>v.toFixed(2)).join(" ")}"
+      width="${Math.min(880, vb[2]*11)}" role="application"
+      aria-label="Isometric view, ${TILES.length} placemats, editable">${g.join("")}${overlay.join("")}</svg>`;
+  }
+
+  // front (along the depth) or side (along the width)
+  const along = VIEW === "front";
+  const W = along ? TW : TD;
+  const g = [];
+  g.push(`<line x1="0" y1="0" x2="${W}" y2="0" stroke="var(--ink-3)" stroke-width="0.22"/>`);
+  const order = TILES.slice().sort((a,b)=> along ? (a.y - b.y) : (a.x - b.x));
+  order.forEach(t=>{
+    const z = elevIn(t.elev); if (z <= 0) return;
+    const a = along ? colX(t.x) : rowY(t.y);
+    const len = along ? tileW(t) : tileD(t);
+    const i = TILES.indexOf(t);
+    g.push(`<rect x="${a.toFixed(3)}" y="${(-z).toFixed(3)}" width="${len.toFixed(3)}"
+      height="${z.toFixed(3)}" fill="var(--l${t.elev})" fill-opacity="0.9"
+      stroke="${SEL.has(i)?"var(--sel)":"var(--ink-3)"}" stroke-width="${SEL.has(i)?0.4:0.16}"/>`);
+  });
+  // elevation ticks
+  [1,2,3].forEach(l=>{
+    const z = elevIn(l);
+    g.push(`<line x1="-1" y1="${(-z).toFixed(3)}" x2="${W}" y2="${(-z).toFixed(3)}"
+      stroke="var(--grid)" stroke-width="0.1" stroke-dasharray="0.6 0.5"/>`);
+    g.push(`<text x="${W+0.8}" y="${(-z).toFixed(3)}" font-family="IBM Plex Mono,monospace"
+      font-size="1.3" fill="var(--ink-3)" dominant-baseline="middle">L${l} ${z.toFixed(2)}″</text>`);
+  });
+  const top = -(maxH + 2);
+  return `<svg viewBox="-2 ${top.toFixed(2)} ${W+11} ${(maxH+4).toFixed(2)}"
+    width="${Math.min(880, W*13)}" role="img"
+    aria-label="${along?"Front":"Side"} elevation">${g.join("")}</svg>`;
+}
+
+/* ============================ rollup ============================ */
+const sheetOf = () => {
+  const s = SHEETS[$("sheet").value];
+  return [inch(Math.min(s[0], +$("BW").value)), inch(Math.min(s[1], +$("BH").value))];
+};
+/* group risers into SKUs by footprint + elevation */
+function skus(){
+  const m = new Map();
+  TILES.forEach((t,i)=>{
+    if (t.elev <= 0) return;
+    const key = `${t.w}x${t.h}L${t.elev}`;
+    if (!m.has(key)) m.set(key, {key, w:t.w, h:t.h, elev:t.elev, n:0, idx:[]});
+    const e = m.get(key); e.n++; e.idx.push(i);
+  });
+  return [...m.values()].sort((a,b)=> b.w*b.h - a.w*a.h || a.elev - b.elev);
+}
+function skuSpec(k){
+  return spec({wIn: spanHalf(cellWv(), k.w), dIn: spanHalf(cellDv(), k.h), heightIn: elevIn(k.elev)});
+}
+function partsFor(k, sheet){
+  const s = skuSpec(k);
+  if (problems(s).length) return null;
+  if (MODE === "one-piece") return [net(s)];
+  if (MODE === "band") return bandParts(s, sheet);
+  const gapv = +$("gap").value;
+  const a = perSheet(()=>[net(s)], sheet, gapv, 16);
+  const b = perSheet(()=>bandParts(s, sheet), sheet, gapv, 16);
+  return b > a ? bandParts(s, sheet) : [net(s)];
+}
+
+/* ============================ render ============================ */
+let SHEETSCACHE = [];
+
+function render(){
+  LAY.layout = +$("layout").value; LAY.rows = +$("rowsn").value;
+  TILES = TILES.filter(fitsGrid);
+  SEL = new Set([...SEL].filter(i => i < TILES.length));
+
+  $("planstage").innerHTML = drawPlan();
+  $("viewstage").innerHTML = drawView();
+  $("layoutn").textContent = `${cellWv().toFixed(2)} × ${cellDv().toFixed(2)} in cell · ${HC()}×${HR()} half-modules`;
+  const shv = SHEETS[$("sheet").value];
+  $("sheetn").textContent = `${shv[0]} × ${shv[1]} in`;
+  $("matn").textContent = `${MATERIALS[$("mat").value].t} mm · ${MATERIALS[$("mat").value].note}`;
+  $("viewnote").textContent = VIEW === "iso" ? "risers shown at their true elevation"
+    : VIEW === "front" ? "looking across the table's width" : "looking along the table's depth";
+
+  const sheet = sheetOf(), gapv = +$("gap").value;
+  const sk = skus();
+  const risers = TILES.filter(t=>t.elev>0).length;
+
+  /* --- gather every part for the whole layout, then fill sheets --- */
+  let allParts = [], bad = [];
+  sk.forEach(k=>{
+    const one = partsFor(k, sheet);
+    if (!one){ bad.push(k); return; }
+    k.parts = one.length; k.scheme = one.scheme || "one-piece";
+    for (let i=0;i<k.n;i++) allParts = allParts.concat(partsFor(k, sheet));
+  });
+  const {sheets, unplaced} = nestAll(allParts, sheet, gapv);
+  SHEETSCACHE = sheets;
+  if (SHEETIDX >= sheets.length) SHEETIDX = 0;
+
+  const cutA = allParts.reduce((t,p)=>t+area(p),0);
+  const covered = TILES.reduce((a,t)=>a + tileW(t)*tileD(t), 0);
+  const tableA = (+$("tblW").value) * (+$("tblD").value);
+
+  $("stats").innerHTML = `
+    <div class="c"><div class="k">Placemats</div><div class="v">${TILES.length}</div></div>
+    <div class="c"><div class="k">Risers</div><div class="v">${risers}<small> of ${TILES.length}</small></div></div>
+    <div class="c"><div class="k">Distinct sizes</div><div class="v">${sk.length}</div></div>
+    <div class="c"><div class="k">Table covered</div><div class="v">${(covered/tableA*100).toFixed(0)}<small>%</small></div></div>
+    <div class="c"><div class="k">Sheets</div><div class="v">${sheets.length}${unplaced.length?"+":""}</div></div>
+    <div class="c"><div class="k">Board</div><div class="v">${(sqIn(cutA)/144).toFixed(1)}<small> sq ft</small></div></div>`;
+
+  /* --- inspector --- */
+  const selArr = [...SEL].map(i=>TILES[i]).filter(Boolean);
+  const lv = [0,1,2,3].map(l=>`
+    <button class="lv" data-l="${l}" type="button" ${selArr.length?"":"disabled"}
+      aria-pressed="${selArr.length && selArr.every(t=>t.elev===l)}">
+      <span class="sw"></span><span class="t">${l===0?"Mat":"L"+l}</span>
+      <span class="h">${l===0?"flat":elevIn(l).toFixed(2)+"″"}</span></button>`).join("");
+  $("levels").innerHTML = lv;
+  ["dup","del"].forEach(id=>$(id).disabled = !selArr.length);
+  if (!selArr.length){
+    $("institle").textContent = "Nothing selected";
+    $("insbig").textContent = "—";
+    $("insm").textContent = "Drag a rectangle on the plan to add a placemat.";
+  } else if (selArr.length === 1){
+    const t = selArr[0];
+    $("institle").textContent = `${t.w/2} × ${t.h/2} module`;
+    $("insbig").textContent = `${tileW(t).toFixed(2)} × ${tileD(t).toFixed(2)} in`;
+    const s = skuSpec({w:t.w,h:t.h,elev:t.elev||1});
+    const errs = t.elev>0 ? problems(s) : [];
+    $("insm").innerHTML = t.elev === 0
+      ? "Flat placemat — no riser cut."
+      : errs.length ? `<span style="color:var(--cut)">${esc(errs[0])}</span>`
+      : `Riser ${elevIn(t.elev).toFixed(2)}″ tall · walls cut ${toIn(s.hf).toFixed(2)}″ flat`;
+  } else {
+    $("institle").textContent = `${selArr.length} tiles selected`;
+    const a = selArr.reduce((v,t)=>v+tileW(t)*tileD(t),0);
+    $("insbig").textContent = `${a.toFixed(0)} sq in`;
+    $("insm").textContent = `${selArr.filter(t=>t.elev>0).length} of them get risers`;
+  }
+
+  /* --- elevation mix --- */
+  const mix = [0,1,2,3].map(l=>({l, n:TILES.filter(t=>t.elev===l).length}));
+  $("mixtbl").innerHTML = `<tbody>${mix.map(m=>`
+    <tr data-lv="${m.l}"><td><span class="sw2" style="background:var(--l${m.l})"></span>${
+      m.l===0?"Flat placemat":"Level "+m.l}</td>
+    <td class="n k">${m.l===0?"—":elevIn(m.l).toFixed(2)+"″"}</td>
+    <td class="n">${m.n}</td></tr>`).join("")}</tbody>`;
+
+  /* --- riser schedule --- */
+  $("t-sku").textContent = `${sk.length} size${sk.length===1?"":"s"} · ${risers} riser${risers===1?"":"s"}`;
+  $("skutbl").innerHTML = sk.length ? `
+    <thead><tr><th>Module</th><th>Footprint (in)</th><th>Level</th><th>Height</th>
+      <th>Qty</th><th>Build</th><th>Parts</th></tr></thead>
+    <tbody>${sk.map(k=>{
+      const s = skuSpec(k), errs = problems(s);
+      const sel = selArr.length && selArr.every(t=>t.w===k.w&&t.h===k.h&&t.elev===k.elev);
+      return `<tr class="${sel?"sel":""}" data-sku="${k.key}">
+        <td class="n">${k.w/2} × ${k.h/2}</td>
+        <td class="n">${spanHalf(cellWv(),k.w).toFixed(2)} × ${spanHalf(cellDv(),k.h).toFixed(2)}</td>
+        <td><span class="sw2" style="background:var(--l${k.elev})"></span>L${k.elev}</td>
+        <td class="n">${elevIn(k.elev).toFixed(2)}″</td>
+        <td class="n">${k.n}</td>
+        <td class="k">${errs.length?`<span style="color:var(--cut)">won't fold</span>`
+          :(k.scheme==="one-piece"?"one-piece":"panel + walls")}</td>
+        <td class="n">${errs.length?"—":k.parts*k.n}</td></tr>`;
+    }).join("")}</tbody>` : `<tbody><tr><td class="k" style="padding:12px">
+      No risers yet — set a tile to Level 1, 2 or 3.</td></tr></tbody>`;
+
+  /* --- cut dimensions for the selected (or largest) sku --- */
+  const focus = selArr.length ? sk.find(k=>selArr.some(t=>t.w===k.w&&t.h===k.h&&t.elev===k.elev)) : null;
+  const k0 = focus || sk[0];
+  if (k0){
+    const s = k0 && skuSpec(k0);
+    const errs = problems(s);
+    $("t-cut").textContent = `${spanHalf(cellWv(),k0.w).toFixed(2)} × ${spanHalf(cellDv(),k0.h).toFixed(2)} in · L${k0.elev}`;
+    if (errs.length){
+      $("netstage").innerHTML = `<p style="padding:10px; color:var(--cut); margin:0">${esc(errs[0])}</p>`;
+      $("cuttbl").innerHTML = "";
+    } else {
+      const ps = partsFor(k0, sheet);
+      const mode = ps.length === 1 ? "one-piece" : "band";
+      const sc = ps.scheme || "one-piece";
+      /* de-duplicate identical pieces so "L wall × 2" draws once */
+      const uniq = [];
+      ps.forEach(p=>{
+        const same = uniq.find(u => u.p.label.replace(/ \d+$/,"") === p.label.replace(/ \d+$/,"") &&
+                                    Math.abs(u.p.size[0]-p.size[0]) < 1e-6 &&
+                                    Math.abs(u.p.size[1]-p.size[1]) < 1e-6);
+        if (same) same.n++; else uniq.push({p, n:1});
+      });
+      $("netstage").innerHTML = drawParts(uniq.map(u=>({
+        ...u.p, label: u.n > 1 ? `${u.p.label.replace(/ \d+$/,"")} × ${u.n}` : u.p.label,
+      })));
+      const rows = [];
+      if (mode === "one-piece"){
+        rows.push(["Top panel", `${toIn(s.wp).toFixed(3)} × ${toIn(s.dp).toFixed(3)}`, "drops between the walls"]);
+        rows.push(["Wall flat height", `${toIn(s.hf).toFixed(3)}`, "target height less one thickness"]);
+        rows.push(["Flat net", `${toIn(ps[0].size[0]).toFixed(2)} × ${toIn(ps[0].size[1]).toFixed(2)}`, "bounding box on the sheet"]);
+        rows.push(["Glue tabs", `4 × ${s.tab.toFixed(0)} mm`, "fold in, glue inside the end walls"]);
+      } else {
+        const runA = s.wExt-2*s.t, runB = s.dExt-2*s.t;
+        rows.push(["Top panel", `${toIn(s.wExt).toFixed(3)} × ${toIn(s.dExt).toFixed(3)}`, "caps the walls, edges flush"]);
+        rows.push(["Wall height", `${toIn(s.hf).toFixed(3)}`, "target height less one thickness"]);
+        if (sc === "L2") rows.push(["L wall × 2", `${toIn(s.t+runA+runB+s.t+s.tab).toFixed(3)} long`,
+          `fold at ${toIn(s.t+runA).toFixed(3)}″ from the left edge`]);
+        else {
+          rows.push(["Long wall × 2", `${toIn(s.wExt).toFixed(3)} long`, "plain rectangle, no folds"]);
+          rows.push(["End wall × 2", `${toIn(runB+2*s.tab).toFixed(3)} overall`, `fold ${s.tab.toFixed(0)} mm in from each end`]);
+        }
+      }
+      const rb = ribs(s);
+      rows.push(["Optional ribs", `${toIn(rb[0].size[0]).toFixed(2)} and ${toIn(rb[1].size[0]).toFixed(2)} long`,
+        `${toIn(rb[0].size[1]).toFixed(2)}″ tall, slot cut ${(s.t-s.kerf).toFixed(2)} mm for ${s.t} mm stock`]);
+      $("cuttbl").innerHTML = `<thead><tr><th>Part</th><th>Size (in)</th><th>Note</th></tr></thead>
+        <tbody>${rows.map(([a,b,c])=>`<tr><td>${a}</td><td class="n">${b}</td><td class="k">${c}</td></tr>`).join("")}</tbody>`;
+    }
+  } else {
+    $("t-cut").textContent = "no riser selected";
+    $("netstage").innerHTML = `<p style="padding:10px; color:var(--ink-3); margin:0">Set a tile to an elevation to see its cut file.</p>`;
+    $("cuttbl").innerHTML = "";
+  }
+
+  /* --- cut sheets --- */
+  $("t-sheets").textContent = sheets.length
+    ? `${risers} riser${risers===1?"":"s"} → ${sheets.length} sheet${sheets.length===1?"":"s"} of ${shv[0]} × ${shv[1]} in · ${(sqIn(cutA)/144).toFixed(1)} sq ft${unplaced.length?` · ${unplaced.length} parts won't fit`:""}`
+    : "no risers yet — set a tile to an elevation";
+  if (sheets.length){
+    /* one tab per sheet, so a multi-sheet job is obvious and every sheet's
+       own cut pattern is one click away */
+    $("sheetnav").innerHTML =
+      `<button class="btn ghost" type="button" data-step="-1" ${SHEETIDX===0?"disabled":""}>←</button>`
+      + sheets.map((s,i)=>`<button class="btn ${i===SHEETIDX?"":"ghost"}" type="button"
+          data-sheet="${i}">Sheet ${i+1}<span style="opacity:.6"> · ${s.length} part${s.length===1?"":"s"}</span></button>`).join("")
+      + `<button class="btn ghost" type="button" data-step="1" ${SHEETIDX>=sheets.length-1?"disabled":""}>→</button>`
+      + `<span class="shcount">showing sheet ${SHEETIDX+1} of ${sheets.length}</span>`
+      + (unplaced.length?`<span style="color:var(--cut); font-size:12px">${unplaced.length} parts
+          exceed this sheet — use bigger stock or drop the elevation</span>`:"");
+    $("sheetstage").innerHTML = drawSheet(sheets[SHEETIDX], sheet[0], sheet[1], 620);
+    LAST = exportSVG(sheets[SHEETIDX], sheet[0], sheet[1]);
+  } else {
+    $("sheetnav").innerHTML = "";
+    $("sheetstage").innerHTML = `<p style="padding:10px; color:var(--ink-3); margin:0">No risers to nest yet — set a tile to Level 1, 2 or 3.</p>`;
+    LAST = "";
+  }
+  $("exhint").textContent = MATERIALS[$("mat").value].note;
+  if (!$("src").hidden) $("src").value = LAST;
+}
+
+/* ============================ wiring ============================ */
+Object.keys(MATERIALS).forEach(k=>{
+  const o=document.createElement("option"); o.value=k; o.textContent=k; $("mat").appendChild(o);
+});
+Object.keys(SHEETS).forEach(k=>{
+  const o=document.createElement("option"); o.value=k; o.textContent=k; $("sheet").appendChild(o);
+});
+$("mat").addEventListener("change", ()=>{
+  const m = MATERIALS[$("mat").value];
+  $("t").value = m.t; $("sheet").value = m.sheet;
+  const s = SHEETS[m.sheet]; $("BW").value = s[0]; $("BH").value = s[1];
+  render();
+});
+$("sheet").addEventListener("change", ()=>{
+  const s = SHEETS[$("sheet").value];
+  $("BW").value = s[0]; $("BH").value = s[1]; SHEETIDX = 0; render();
+});
+["layout","rowsn"].forEach(id=>$(id).addEventListener("change", ()=>{
+  LAY.layout = +$("layout").value; LAY.rows = +$("rowsn").value;
+  TILES = TILES.filter(fitsGrid); SEL.clear(); render();
+}));
+
+/* --- editing, shared by the plan and the isometric view: drag empty grid
+       to create, drag a tile to move, drag the corner handle to resize,
+       click the badge to set elevation --- */
+const paintPlan = () => { $("planstage").innerHTML = drawPlan(); };
+const paintView = () => { $("viewstage").innerHTML = drawView(); };
+const repaint = v => v === "iso" ? paintView() : paintPlan();
+
+function pickCell(view, evt, z){
+  return view === "iso" ? cellAtIso(evt, z) : cellAt(evt);
+}
+
+function attachEditor(hostId, view){
+  const host = $(hostId);
+
+  host.addEventListener("pointerdown", e=>{
+    if (view === "iso" && VIEW !== "iso") return;
+    if (!$(view === "iso" ? "isosvg" : "plan")) return;
+
+    // the elevation menu sits above everything, so test it first
+    const item = e.target.closest(".lvitem");
+    if (item){
+      const i = +item.dataset.i;
+      if (TILES[i]) TILES[i].elev = +item.dataset.l;
+      OPENMENU = null; render(); e.preventDefault(); return;
+    }
+    const badge = e.target.closest(".lvbadge");
+    if (badge){
+      const i = +badge.dataset.i;
+      OPENMENU = (OPENMENU === i && MENUVIEW === view) ? null : i;
+      MENUVIEW = view;
+      SEL.clear(); SEL.add(i);
+      render(); e.preventDefault(); return;
+    }
+    OPENMENU = null;
+
+    const handle = e.target.closest(".handle");
+    const tileEl = e.target.closest(".tile");
+    /* Capture keeps the drag alive while the SVG is rebuilt under the cursor,
+       but it throws if the pointer id is no longer active — and an exception
+       here would abort the rest of this handler. */
+    try { host.setPointerCapture?.(e.pointerId); } catch { /* drag still works */ }
+
+    if (handle){
+      const i = +handle.dataset.i, t = TILES[i]; if (!t) return;
+      DRAG.on = true; DRAG.mode = "resize"; DRAG.view = view; DRAG.i = i;
+      DRAG.handle = handle.dataset.h; DRAG.orig = {...t}; DRAG.ghost = {...t};
+      DRAG.from = pickCell(view, e, elevIn(t.elev)); DRAG.moved = false;
+      repaint(view); e.preventDefault(); return;
+    }
+    if (tileEl){
+      const i = +tileEl.dataset.i, t = TILES[i]; if (!t) return;
+      if (e.shiftKey){ SEL.has(i) ? SEL.delete(i) : SEL.add(i); render(); return; }
+      SEL.clear(); SEL.add(i);
+      const c = pickCell(view, e, elevIn(t.elev)); if (!c) { render(); return; }
+      DRAG.on = true; DRAG.mode = "move"; DRAG.view = view; DRAG.i = i;
+      DRAG.from = c; DRAG.orig = {...t}; DRAG.ghost = {...t}; DRAG.moved = false;
+      render(); e.preventDefault(); return;
+    }
+    const c = pickCell(view, e, 0); if (!c) return;
+    DRAG.on = true; DRAG.mode = "create"; DRAG.view = view; DRAG.i = null;
+    DRAG.from = c; DRAG.orig = null;
+    DRAG.ghost = {x:c.x, y:c.y, w:1, h:1}; DRAG.moved = false;
+    render();
+  });
+
+  host.addEventListener("pointermove", e=>{
+    if (!DRAG.on || DRAG.view !== view) return;
+    const o = DRAG.orig;
+    const z = DRAG.mode === "create" ? 0 : elevIn(TILES[DRAG.i]?.elev ?? 0);
+    const c = pickCell(view, e, z); if (!c) return;
+
+    if (DRAG.mode === "create"){
+      DRAG.ghost = {
+        x: Math.min(DRAG.from.x, c.x), y: Math.min(DRAG.from.y, c.y),
+        w: Math.abs(c.x - DRAG.from.x) + 1, h: Math.abs(c.y - DRAG.from.y) + 1,
+      };
+    } else if (DRAG.mode === "move"){
+      const nx = o.x + (c.x - DRAG.from.x), ny = o.y + (c.y - DRAG.from.y);
+      DRAG.ghost = {
+        x: Math.max(0, Math.min(HC() - o.w, nx)),
+        y: Math.max(0, Math.min(HR() - o.h, ny)),
+        w: o.w, h: o.h,
+      };
+    } else {
+      // resize: the tile's near corner stays anchored, the dragged edge follows
+      const g = {...o};
+      if (DRAG.handle === "e" || DRAG.handle === "se") g.w = Math.max(1, c.x - o.x + 1);
+      if (DRAG.handle === "s" || DRAG.handle === "se") g.h = Math.max(1, c.y - o.y + 1);
+      g.w = Math.min(g.w, HC() - g.x); g.h = Math.min(g.h, HR() - g.y);
+      DRAG.ghost = g;
+    }
+    const g = DRAG.ghost;
+    if (!o || g.x !== o.x || g.y !== o.y || g.w !== o.w || g.h !== o.h) DRAG.moved = true;
+    repaint(view);                   // light repaint: don't re-nest mid-drag
+  });
+
+  host.addEventListener("pointerup", endDrag);
+  host.addEventListener("pointercancel", endDrag);
+}
+
+function endDrag(){
+  if (!DRAG.on) return;
+  const {mode, ghost:g, i, moved} = DRAG;
+  const ignore = (mode === "move" || mode === "resize") ? TILES[i] : null;
+  DRAG.on = false; DRAG.mode = null; DRAG.ghost = null; DRAG.from = null;
+  DRAG.i = null; DRAG.handle = null; DRAG.orig = null; DRAG.view = null;
+
+  if (g && canPlace(g, ignore)){
+    if (mode === "create"){
+      TILES.push({x:g.x, y:g.y, w:g.w, h:g.h, elev:1});
+      SEL.clear(); SEL.add(TILES.length - 1);
+    } else if (moved && TILES[i]){
+      Object.assign(TILES[i], {x:g.x, y:g.y, w:g.w, h:g.h});
+    }
+  } else if (mode === "create" && g){
+    SEL.clear();                     // an invalid new tile just clears selection
+  }
+  // an invalid move or resize silently snaps back — nothing is applied
+  render();
+}
+
+attachEditor("planstage", "plan");
+attachEditor("viewstage", "iso");
+
+$("levels").addEventListener("click", e=>{
+  const b = e.target.closest(".lv"); if (!b || b.disabled) return;
+  const l = +b.dataset.l;
+  [...SEL].forEach(i=>{ if (TILES[i]) TILES[i].elev = l; });
+  render();
+});
+$("del").addEventListener("click", ()=>{
+  TILES = TILES.filter((_,i)=>!SEL.has(i)); SEL.clear(); render();
+});
+$("dup").addEventListener("click", ()=>{
+  const add = [];
+  [...SEL].forEach(i=>{
+    const t = TILES[i]; if (!t) return;
+    for (const [dx,dy] of [[t.w,0],[0,t.h],[-t.w,0],[0,-t.h]]){
+      const c = {x:t.x+dx, y:t.y+dy, w:t.w, h:t.h, elev:t.elev};
+      if (fitsGrid(c) && !TILES.concat(add).some(o=>overlaps(o,c))){ add.push(c); break; }
+    }
+  });
+  if (add.length){
+    const start = TILES.length;
+    TILES = TILES.concat(add);
+    SEL = new Set(add.map((_,j)=>start+j));
+  }
+  render();
+});
+$("all").addEventListener("click", ()=>{ SEL = new Set(TILES.map((_,i)=>i)); render(); });
+$("fill").addEventListener("click", ()=>{ TILES = presetFill(); SEL.clear(); render(); });
+$("bento").addEventListener("click", ()=>{ TILES = presetBento(); SEL.clear(); render(); });
+$("clear").addEventListener("click", ()=>{ TILES = []; SEL.clear(); render(); });
+
+$("mixtbl").addEventListener("click", e=>{
+  const tr = e.target.closest("tr[data-lv]"); if (!tr) return;
+  const l = +tr.dataset.lv;
+  SEL = new Set(TILES.map((t,i)=>t.elev===l?i:-1).filter(i=>i>=0));
+  render();
+});
+$("skutbl").addEventListener("click", e=>{
+  const tr = e.target.closest("tr[data-sku]"); if (!tr) return;
+  const k = skus().find(s=>s.key===tr.dataset.sku); if (!k) return;
+  SEL = new Set(k.idx); render();
+});
+$("sheetnav").addEventListener("click", e=>{
+  const step = e.target.closest("button[data-step]");
+  if (step){
+    SHEETIDX = Math.max(0, Math.min(SHEETSCACHE.length - 1, SHEETIDX + (+step.dataset.step)));
+    render(); return;
+  }
+  const b = e.target.closest("button[data-sheet]"); if (!b) return;
+  SHEETIDX = +b.dataset.sheet; render();
+});
+$("viewtabs").addEventListener("click", e=>{
+  const b = e.target.closest("button[data-v]"); if (!b) return;
+  VIEW = b.dataset.v;
+  [...$("viewtabs").children].forEach(c=>c.setAttribute("aria-pressed", c===b));
+  render();
+});
+$("mode").addEventListener("click", e=>{
+  const b = e.target.closest("button[data-v]"); if (!b) return;
+  MODE = b.dataset.v;
+  [...$("mode").children].forEach(c=>c.setAttribute("aria-pressed", c===b));
+  render();
+});
+document.addEventListener("keydown", e=>{
+  if (/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
+  if (e.key >= "0" && e.key <= "3" && SEL.size){
+    [...SEL].forEach(i=>{ if (TILES[i]) TILES[i].elev = +e.key; });
+    render(); e.preventDefault();
+  } else if ((e.key === "Backspace" || e.key === "Delete") && SEL.size){
+    TILES = TILES.filter((_,i)=>!SEL.has(i)); SEL.clear(); render(); e.preventDefault();
+  } else if (e.key === "Escape"){ SEL.clear(); render(); }
+});
+let pending = 0;
+$("d-adv").addEventListener("input", ()=>{ clearTimeout(pending); pending = setTimeout(render, 120); });
+["tblW","tblD"].forEach(id=>$(id).addEventListener("input", ()=>{
+  clearTimeout(pending); pending = setTimeout(render, 120);
+}));
+
+/* saving a file needs host permission as a published artifact; opened as a
+   local file it just downloads */
+let DL = null;
+if (window.claude && typeof window.claude.use === "function"){
+  window.claude.use("downloads").then(d=>{ DL = d; }).catch(()=>{});
+}
+const filename = () => `riser-sheet-${SHEETIDX+1}-of-${Math.max(1,SHEETSCACHE.length)}.svg`;
+function blobSave(){
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([LAST], {type:"image/svg+xml"}));
+  a.download = filename();
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+}
+$("dl").addEventListener("click", async e=>{
+  if (!LAST) return;
+  const btn = e.target, was = btn.textContent;
+  const say = m => { btn.textContent = m; setTimeout(()=>{ btn.textContent = was; }, 2600); };
+  if (!DL){ blobSave(); return; }
+  try { btn.textContent = "Saving…"; await DL.save({filename:filename(), data:LAST}); say("Saved"); }
+  catch (err){
+    const c = err && err.code;
+    if (c === "declined") say("Cancelled");
+    else if (c === "rate_limited") say("Try again in a moment");
+    else if (c === "rejected_extension" || c === "extension_not_enabled") say("SVG blocked — use Copy SVG");
+    else { blobSave(); say(was); }
+  }
+});
+$("cp").addEventListener("click", async e=>{
+  try { await navigator.clipboard.writeText(LAST); e.target.textContent = "Copied"; }
+  catch { e.target.textContent = "Copy blocked — use Show source"; }
+  setTimeout(()=>{ e.target.textContent = "Copy SVG"; }, 2200);
+});
+$("sh").addEventListener("click", e=>{
+  const ta = $("src"); ta.hidden = !ta.hidden; ta.value = LAST;
+  e.target.textContent = ta.hidden ? "Show source" : "Hide source";
+});
+
+TILES = presetBento();
+$("d-sheets").open = false;
+render();
+</script>
+
+</body>
+</html>
