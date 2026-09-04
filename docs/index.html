@@ -59,8 +59,14 @@ h1{font-size:25px; font-weight:700; margin:0}
 header .sub{color:var(--ink-2); font-size:13.5px; max-width:64ch; margin:0}
 
 /* ---------- setup rail ---------- */
-.setup{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin-top:16px}
-@media (max-width:900px){.setup{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.setup{display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; margin-top:16px}
+@media (max-width:1180px){.setup{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:760px){.setup{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.trio{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; margin-top:5px}
+.trio label{display:block; font-family:"Archivo Narrow",sans-serif; font-size:9.5px;
+  letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); margin-bottom:2px}
+.trio input:disabled{opacity:.55; cursor:not-allowed}
+.card .warn{color:var(--cut)}
 .card{background:var(--surface); border:1px solid var(--line-2); border-top:3px solid var(--line-2);
   border-radius:var(--r); padding:8px 11px 10px}
 .card .k{font-family:"Archivo Narrow",sans-serif; font-size:10.5px; letter-spacing:.12em;
@@ -213,6 +219,22 @@ button:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visi
     </div>
     <div class="n">inches, width × depth</div>
   </div>
+  <div class="card">
+    <div class="k">Gap &amp; margin</div>
+    <div class="seg" id="sizmode" style="margin-top:4px">
+      <button type="button" data-v="fit" aria-pressed="true">Fit table</button>
+      <button type="button" data-v="fixed" aria-pressed="false">Fixed cell</button>
+    </div>
+    <div class="trio">
+      <div><label for="gutter">Gap</label>
+        <input type="number" id="gutter" value="0.25" step="0.0625" min="0"></div>
+      <div><label for="marX">Side</label>
+        <input type="number" id="marX" value="0.965" step="0.125" min="0"></div>
+      <div><label for="marY">Front</label>
+        <input type="number" id="marY" value="0.875" step="0.125" min="0"></div>
+    </div>
+    <div class="n" id="spacen"></div>
+  </div>
 </div>
 
 <div class="main">
@@ -318,7 +340,6 @@ button:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visi
       <div class="field"><label for="cellW">4-col cell <span class="u">in</span></label><input type="number" id="cellW" value="14.33" step="0.01"></div>
       <div class="field"><label for="cellW3">3-col cell <span class="u">in</span></label><input type="number" id="cellW3" value="19.25" step="0.01"></div>
       <div class="field"><label for="cellD">Row height <span class="u">in</span></label><input type="number" id="cellD" value="13.25" step="0.01"></div>
-      <div class="field"><label for="gutter">Gutter <span class="u">in</span></label><input type="number" id="gutter" value="0.25" step="0.0625"></div>
       <div class="field"><label for="e1">Elevation 1 <span class="u">in</span></label><input type="number" id="e1" value="1.5" step="0.125"></div>
       <div class="field"><label for="e2">Elevation 2 <span class="u">in</span></label><input type="number" id="e2" value="3" step="0.125"></div>
       <div class="field"><label for="e3">Elevation 3 <span class="u">in</span></label><input type="number" id="e3" value="4.5" step="0.125"></div>
@@ -633,7 +654,7 @@ ${Object.entries(L).map(([k,v])=>`<g id="${k}" inkscape:groupmode="layer" inksca
    Counted in HALF modules, because the bento layout splits cells. With a
    half-unit h = (cell - gutter)/2, a run of k half-units measures
    k*h + (k-1)*gutter — so k=2 returns exactly one cell.                  */
-const gut    = () => +$("gutter").value;
+const gut    = () => Math.max(0, +$("gutter").value);   // gap between placemats
 const cellWv = () => LAY.layout === 4 ? +$("cellW").value : +$("cellW3").value;
 const cellDv = () => +$("cellD").value;
 const halfOf = cell => (cell - gut()) / 2;
@@ -642,14 +663,54 @@ const spanOf = (cell, s) => spanHalf(cell, 2 * s);
 const elevIn = l => l <= 0 ? 0 : +$(`e${l}`).value;
 
 const LAY = {layout:4, rows:3};
+const SIZ = {mode:"fit"};                 // "fit" | "fixed"
 const HC = () => LAY.layout * 2;          // half-columns across
 const HR = () => LAY.rows * 2;            // half-rows down
-const gridW = () => spanHalf(cellWv(), HC());
-const gridD = () => spanHalf(cellDv(), HR());
-const mgX = () => (+$("tblW").value - gridW()) / 2;
-const mgY = () => (+$("tblD").value - gridD()) / 2;
-const colX = k => mgX() + k * (halfOf(cellWv()) + gut());
-const rowY = k => mgY() + k * (halfOf(cellDv()) + gut());
+
+/* Which side of the equation is the input.
+
+   fit    — margin and gap are given, and the placemats size themselves to
+            fill whatever is left. This is how you lay out a table: the edge
+            you keep clear and the gap you want are the real decisions.
+   fixed  — cell size and gap are given, and the leftover becomes a centred
+            margin. Use it to pin mats to a physical dimension.
+
+   The defaults are the same layout either way: a 0.965 in side margin and
+   0.875 in front margin on a 60 × 42 in top yield exactly 14.33 × 13.25 in
+   cells, which is where the original grid study landed. */
+const marX = () => Math.max(0, +$("marX").value);
+const marY = () => Math.max(0, +$("marY").value);
+const hw = () => SIZ.mode === "fit"
+  ? ((+$("tblW").value - 2 * marX()) - (HC() - 1) * gut()) / HC()
+  : halfOf(cellWv());
+const hd = () => SIZ.mode === "fit"
+  ? ((+$("tblD").value - 2 * marY()) - (HR() - 1) * gut()) / HR()
+  : halfOf(cellDv());
+const spanW = k => k * hw() + (k - 1) * gut();
+const spanD = k => k * hd() + (k - 1) * gut();
+const cellWd = () => 2 * hw() + gut();    // the resulting cell, for display
+const cellDd = () => 2 * hd() + gut();
+const gridW = () => spanW(HC());
+const gridD = () => spanD(HR());
+const mgX = () => SIZ.mode === "fit" ? marX() : (+$("tblW").value - gridW()) / 2;
+const mgY = () => SIZ.mode === "fit" ? marY() : (+$("tblD").value - gridD()) / 2;
+const colX = k => mgX() + k * (hw() + gut());
+const rowY = k => mgY() + k * (hd() + gut());
+
+/* Margins and gaps can be set past what the table can hold. Say so rather
+   than drawing a grid with negative-width cells. */
+function gridProblem(){
+  if (hw() <= 0.25 || hd() <= 0.25){
+    return SIZ.mode === "fit"
+      ? `Margin and gap leave no room — ${HC()}×${HR()} half-modules need more than `
+        + `${(2*marX() + (HC()-1)*gut()).toFixed(1)} × ${(2*marY() + (HR()-1)*gut()).toFixed(1)} in of the top.`
+      : `Cell size is smaller than the gap.`;
+  }
+  if (SIZ.mode === "fixed" && (mgX() < 0 || mgY() < 0))
+    return `A ${cellWv().toFixed(2)} × ${cellDv().toFixed(2)} in cell overruns the table at `
+      + `${LAY.layout} × ${LAY.rows}.`;
+  return null;
+}
 
 /* tiles are {x,y,w,h,elev} in half-module units */
 let TILES = [], SEL = new Set(), VIEW = "iso", MODE = "auto", SHEETIDX = 0, LAST = "";
@@ -706,8 +767,8 @@ const fitsGrid = t => t.x >= 0 && t.y >= 0 && t.x+t.w <= HC() && t.y+t.h <= HR()
 function canPlace(t, ignore = null){
   return fitsGrid(t) && !TILES.some(o => o !== ignore && overlaps(o, t));
 }
-const tileW = t => spanHalf(cellWv(), t.w);
-const tileD = t => spanHalf(cellDv(), t.h);
+const tileW = t => spanW(t.w);
+const tileD = t => spanD(t.h);
 
 function presetBento(){
   /* a plausible starting layout: full cells, half splits and a double span,
@@ -736,7 +797,7 @@ function drawPlan(){
   // grid cells, half-module resolution
   for (let x=0; x<HC(); x++) for (let y=0; y<HR(); y++){
     g.push(`<rect x="${colX(x).toFixed(3)}" y="${rowY(y).toFixed(3)}"
-      width="${halfOf(cellWv()).toFixed(3)}" height="${halfOf(cellDv()).toFixed(3)}"
+      width="${hw().toFixed(3)}" height="${hd().toFixed(3)}"
       fill="none" stroke="var(--grid)" stroke-width="0.1" stroke-dasharray="0.5 0.4"/>`);
   }
   // tiles
@@ -770,7 +831,7 @@ function drawPlan(){
   if (DRAG.ghost){
     const gh = DRAG.ghost;
     const x = colX(gh.x), y = rowY(gh.y);
-    const w = spanHalf(cellWv(), gh.w), d = spanHalf(cellDv(), gh.h);
+    const w = spanW(gh.w), d = spanD(gh.h);
     /* colour the ghost by whether it can actually land there, so dragging
        onto an occupied cell reads as blocked instead of doing nothing */
     const ok = canPlace(gh);
@@ -796,7 +857,7 @@ function drawPlan(){
 
 /* table inches → half-cell index */
 function cellFromInches(ix, iy){
-  const stepX = halfOf(cellWv()) + gut(), stepY = halfOf(cellDv()) + gut();
+  const stepX = hw() + gut(), stepY = hd() + gut();
   const cx = Math.floor((ix - mgX()) / stepX), cy = Math.floor((iy - mgY()) / stepY);
   return {x: Math.max(0, Math.min(HC()-1, cx)), y: Math.max(0, Math.min(HR()-1, cy))};
 }
@@ -841,7 +902,7 @@ function drawView(){
     g.push(`<polygon points="${dstr(corners)}" fill="var(--surface-2)" stroke="var(--ink-3)" stroke-width="0.25"/>`);
     // grid, so an empty cell is a visible drop target here too
     for (let cx=0; cx<HC(); cx++) for (let cy=0; cy<HR(); cy++){
-      const a = colX(cx), b = rowY(cy), a2 = a + halfOf(cellWv()), b2 = b + halfOf(cellDv());
+      const a = colX(cx), b = rowY(cy), a2 = a + hw(), b2 = b + hd();
       g.push(`<polygon points="${dstr([P(a,b,0),P(a2,b,0),P(a2,b2,0),P(a,b2,0)])}"
         fill="none" stroke="var(--grid)" stroke-width="0.09" stroke-dasharray="0.5 0.4"/>`);
     }
@@ -899,7 +960,7 @@ function drawView(){
       const c = ok ? "var(--accent)" : "var(--cut)";
       const z = DRAG.mode === "create" ? 0 : elevIn(TILES[DRAG.i]?.elev ?? 0);
       const a = colX(gh.x), b = rowY(gh.y);
-      const a2 = a + spanHalf(cellWv(), gh.w), b2 = b + spanHalf(cellDv(), gh.h);
+      const a2 = a + spanW(gh.w), b2 = b + spanD(gh.h);
       overlay.push(`<polygon points="${dstr([P(a,b,z),P(a2,b,z),P(a2,b2,z),P(a,b2,z)])}"
         fill="${c}" fill-opacity="0.24" stroke="${c}" stroke-width="0.4"
         stroke-dasharray="1 0.6" pointer-events="none"/>`);
@@ -966,7 +1027,7 @@ function skus(){
   return [...m.values()].sort((a,b)=> b.w*b.h - a.w*a.h || a.elev - b.elev);
 }
 function skuSpec(k){
-  return spec({wIn: spanHalf(cellWv(), k.w), dIn: spanHalf(cellDv(), k.h), heightIn: elevIn(k.elev)});
+  return spec({wIn: spanW(k.w), dIn: spanD(k.h), heightIn: elevIn(k.elev)});
 }
 function partsFor(k, sheet){
   const s = skuSpec(k);
@@ -987,9 +1048,38 @@ function render(){
   TILES = TILES.filter(fitsGrid);
   SEL = new Set([...SEL].filter(i => i < TILES.length));
 
+  /* Show the derived half of the gap/margin relationship in its own fields,
+     greyed out, so both numbers are always visible whichever is the input. */
+  const fit = SIZ.mode === "fit";
+  const gp = gridProblem();
+  /* Grey out whichever pair is derived, but never write into it here. Each
+     mode owns its own fields, and the numbers it derives are read off the
+     summary line below instead. Writing derived values back on every render
+     would round-trip them through a fixed-decimal field and drift the layout
+     a thousandth of an inch at a time; conversion happens once, on switch. */
+  ["marX","marY"].forEach(id => $(id).disabled = !fit);
+  ["cellW","cellW3","cellD"].forEach(id => $(id).disabled = fit);
+  $("spacen").innerHTML = gp
+    ? `<span class="warn">${esc(gp)}</span>`
+    : fit ? `${gut()}″ gap · ${marX()}″ / ${marY()}″ margin → cell ${cellWd().toFixed(2)} × ${cellDd().toFixed(2)}″`
+          : `${gut()}″ gap · cell ${cellWd().toFixed(2)} × ${cellDd().toFixed(2)}″ → margin ${mgX().toFixed(2)}″ / ${mgY().toFixed(2)}″`;
+
+  if (gp){
+    $("planstage").innerHTML = `<p style="padding:14px; margin:0; color:var(--cut)">${esc(gp)}</p>`;
+    $("viewstage").innerHTML = "";
+    $("stats").innerHTML = "";
+    ["mixtbl","skutbl","cuttbl"].forEach(t=>$(t).innerHTML="");
+    $("netstage").innerHTML = ""; $("sheetstage").innerHTML = ""; $("sheetnav").innerHTML = "";
+    $("t-sheets").textContent = "grid doesn't fit the table";
+    $("t-sku").textContent = ""; $("t-cut").textContent = "";
+    $("layoutn").textContent = `${HC()}×${HR()} half-modules`;
+    LAST = "";
+    return;
+  }
+
   $("planstage").innerHTML = drawPlan();
   $("viewstage").innerHTML = drawView();
-  $("layoutn").textContent = `${cellWv().toFixed(2)} × ${cellDv().toFixed(2)} in cell · ${HC()}×${HR()} half-modules`;
+  $("layoutn").textContent = `${cellWd().toFixed(2)} × ${cellDd().toFixed(2)} in cell · ${HC()}×${HR()} half-modules`;
   const shv = SHEETS[$("sheet").value];
   $("sheetn").textContent = `${shv[0]} × ${shv[1]} in`;
   $("matn").textContent = `${MATERIALS[$("mat").value].t} mm · ${MATERIALS[$("mat").value].note}`;
@@ -1072,7 +1162,7 @@ function render(){
       const sel = selArr.length && selArr.every(t=>t.w===k.w&&t.h===k.h&&t.elev===k.elev);
       return `<tr class="${sel?"sel":""}" data-sku="${k.key}">
         <td class="n">${k.w/2} × ${k.h/2}</td>
-        <td class="n">${spanHalf(cellWv(),k.w).toFixed(2)} × ${spanHalf(cellDv(),k.h).toFixed(2)}</td>
+        <td class="n">${spanW(k.w).toFixed(2)} × ${spanD(k.h).toFixed(2)}</td>
         <td><span class="sw2" style="background:var(--l${k.elev})"></span>L${k.elev}</td>
         <td class="n">${elevIn(k.elev).toFixed(2)}″</td>
         <td class="n">${k.n}</td>
@@ -1088,7 +1178,7 @@ function render(){
   if (k0){
     const s = k0 && skuSpec(k0);
     const errs = problems(s);
-    $("t-cut").textContent = `${spanHalf(cellWv(),k0.w).toFixed(2)} × ${spanHalf(cellDv(),k0.h).toFixed(2)} in · L${k0.elev}`;
+    $("t-cut").textContent = `${spanW(k0.w).toFixed(2)} × ${spanD(k0.h).toFixed(2)} in · L${k0.elev}`;
     if (errs.length){
       $("netstage").innerHTML = `<p style="padding:10px; color:var(--cut); margin:0">${esc(errs[0])}</p>`;
       $("cuttbl").innerHTML = "";
@@ -1379,11 +1469,36 @@ document.addEventListener("keydown", e=>{
     TILES = TILES.filter((_,i)=>!SEL.has(i)); SEL.clear(); render(); e.preventDefault();
   } else if (e.key === "Escape"){ SEL.clear(); render(); }
 });
+$("sizmode").addEventListener("click", e=>{
+  const b = e.target.closest("button[data-v]"); if (!b) return;
+  const next = b.dataset.v;
+  if (next !== SIZ.mode && !gridProblem()){
+    /* Carry the current layout across unrounded, so the grid you were
+       looking at is the grid you keep, and flipping back and forth is
+       lossless rather than creeping by a rounding error each time. */
+    /* Snap to 6 decimals — 25 nanometres, far below any fabrication
+       tolerance. Unrounded, IEEE-754 leaves 0.965 as 0.9649999999999999
+       in the field; at 6 decimals the conversion is a stable fixed point,
+       so it survives any number of flips unchanged. */
+    const snap = v => +v.toFixed(6);
+    if (next === "fixed"){
+      const w = snap(cellWd()), d = snap(cellDd());
+      $(LAY.layout === 4 ? "cellW" : "cellW3").value = w;
+      $("cellD").value = d;
+    } else {
+      const x = snap(mgX()), y = snap(mgY());
+      $("marX").value = x;
+      $("marY").value = y;
+    }
+  }
+  SIZ.mode = next;
+  [...$("sizmode").children].forEach(c=>c.setAttribute("aria-pressed", c === b));
+  render();
+});
 let pending = 0;
-$("d-adv").addEventListener("input", ()=>{ clearTimeout(pending); pending = setTimeout(render, 120); });
-["tblW","tblD"].forEach(id=>$(id).addEventListener("input", ()=>{
-  clearTimeout(pending); pending = setTimeout(render, 120);
-}));
+const later = () => { clearTimeout(pending); pending = setTimeout(render, 120); };
+$("d-adv").addEventListener("input", later);
+["tblW","tblD","gutter","marX","marY"].forEach(id=>$(id).addEventListener("input", later));
 
 /* saving a file needs host permission as a published artifact; opened as a
    local file it just downloads */

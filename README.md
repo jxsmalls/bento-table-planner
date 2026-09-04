@@ -41,11 +41,23 @@ At 6 in tall the second gets 2–2.5× more risers per sheet. Wall strips auto-s
 ## The grid
 
 Counted in **half modules**, because a bento layout splits cells. With a
-half-unit `h = (cell − gutter) / 2`, a run of `k` half-units measures
-`k·h + (k−1)·gutter` — so `k=2` returns exactly one cell. Defaults reproduce the
-original Figma study: 14.33 in cells on a 4-column grid, 19.25 in on 3-column,
-13.25 in rows, 0.25 in gutter, giving 6.50 in half-rows and a full span of
-58.07 × 40.25 in inside a 60 × 42 in top.
+half-unit `h = (cell − gap) / 2`, a run of `k` half-units measures
+`k·h + (k−1)·gap` — so `k=2` returns exactly one cell.
+
+Gap and margin are both parameters, and you choose which side of the equation
+you're driving:
+
+- **Fit table** — margin and gap are the inputs, and the placemats size
+  themselves to fill what's left. This is usually what you want: the edge you
+  keep clear and the gap between mats are the real design decisions.
+- **Fixed cell** — cell size and gap are the inputs, and the leftover becomes a
+  centred margin. Use it to pin mats to a physical dimension.
+
+Both defaults describe the same layout: a 0.965 in side margin and 0.875 in
+front margin on a 60 × 42 in top give exactly 14.33 × 13.25 in cells, which is
+where the original Figma study landed. Whichever pair is derived shows greyed
+out, and the conversion on switching modes is a stable fixed point, so flipping
+back and forth never creeps the layout.
 
 ## Layout
 

@@ -12,6 +12,7 @@ const body = code.slice(0, code.indexOf("/* ============================ wiring"
 const VALS = {
   cellW:14.33, cellW3:19.25, cellD:13.25, gutter:0.25,
   e1:1.5, e2:3, e3:4.5, t:1.5, kerf:0.15, tab:22, gap:3,
+  marX:0.965, marY:0.875,
   W:14.33, D:13.25, H:3, SW:32, SH:40, BW:32, BH:40,
   tblW:60, tblD:42, layout:4, rowsn:3,
   mat:"matboard 4-ply", sheet:"Matboard 32 × 40",
@@ -42,6 +43,7 @@ return {
   presetBento, presetFill, skus, skuSpec, partsFor, sheetOf, nestAll, area,
   render, spec, problems, net, bandParts, pack, exportSVG, elevIn, gridW, gridD,
   isoP, isoInv, cellFromInches, colX, rowY, halfOf, cellWv, cellDv, gut,
+  SIZ, hw, hd, spanW, spanD, cellWd, cellDd, mgX, mgY, marX, marY, gridProblem,
 };`)(VALS);
 
 let fails = 0;
@@ -53,15 +55,17 @@ console.log("checking the layout model\n");
 /* ---- grid geometry ---- */
 A.LAY.layout = 4; A.LAY.rows = 3;
 check(A.HC() === 8 && A.HR() === 6, `4-col 3-row should be 8x6 half-modules, got ${A.HC()}x${A.HR()}`);
-near(A.spanHalf(14.33, 2), 14.33, 1e-9, "two half-modules make one cell");
-near(A.spanHalf(13.25, 1), 6.50, 1e-9, "one half-row");
+near(A.spanW(2), 14.33, 1e-4, "two half-modules make one cell");
+near(A.spanD(1), 6.50, 1e-4, "one half-row");
 near(A.gridW(), 58.07, 0.01, "full 4-col grid width");
 near(A.gridD(), 40.25, 0.01, "full 3-row grid depth");
 check(A.gridW() < VALS.tblW && A.gridD() < VALS.tblD, "grid must fit inside the table");
 A.LAY.layout = 3;
 check(A.HC() === 6, "3-col should be 6 half-modules");
-near(A.gridW(), 58.25, 0.01, "full 3-col grid width");
+near(A.gridW(), 58.07, 0.05, "3-col grid still spans the fitted width");
 A.LAY.layout = 4;
+near(A.cellWd(), 14.33, 1e-3, "fit mode should derive the 14.33in cell");
+near(A.cellDd(), 13.25, 1e-3, "fit mode should derive the 13.25in row");
 console.log("  ok  grid spans reproduce the drawn cells and fit the table");
 
 /* ---- presets place no overlapping tiles, all inside the grid ---- */
@@ -165,6 +169,52 @@ const r2 = A.nestAll(big, sh2, gap);
 check(r2.unplaced.length > 0, "an oversize riser on a 16x14 bed should report unplaced parts");
 console.log("  ok  oversize parts on a small bed are reported, not silently dropped");
 
+
+/* ---- gap and margin: both directions of the relationship ---- */
+{
+  A.LAY.layout = 4; A.LAY.rows = 3;
+
+  // fit mode: margin is the input, the cell is derived
+  A.SIZ.mode = "fit";
+  VALS.marX = 0.965; VALS.marY = 0.875; VALS.gutter = 0.25;
+  near(A.mgX(), 0.965, 1e-9, "fit mode should honour the side margin exactly");
+  near(A.cellWd(), 14.33, 1e-3, "fit: 0.965in margin gives a 14.33in cell");
+  // the grid plus both margins must exactly reconstruct the table
+  near(A.gridW() + 2 * A.mgX(), VALS.tblW, 1e-9, "grid + margins must equal the table width");
+  near(A.gridD() + 2 * A.mgY(), VALS.tblD, 1e-9, "grid + margins must equal the table depth");
+
+  // a bigger margin must shrink the mats, not overflow the table
+  VALS.marX = 4;
+  const narrower = A.cellWd();
+  check(narrower < 14.33, "raising the margin should shrink the cell");
+  near(A.gridW() + 2 * A.mgX(), VALS.tblW, 1e-9, "grid + margins still equal the table width");
+
+  // a bigger gap must also shrink the mats, keeping the total fixed
+  VALS.marX = 0.965; VALS.gutter = 1.5;
+  check(A.cellWd() < 14.33, "widening the gap should shrink the cell");
+  near(A.gridW() + 2 * A.mgX(), VALS.tblW, 1e-9, "grid + margins still equal the table width");
+  // and the gap must actually appear between adjacent half-modules
+  near(A.colX(1) - (A.colX(0) + A.hw()), 1.5, 1e-9, "the gap between mats must equal the gap setting");
+  VALS.gutter = 0.25;
+
+  // fixed mode: the cell is the input, the margin is derived and centred
+  A.SIZ.mode = "fixed";
+  VALS.cellW = 14.33; VALS.cellD = 13.25;
+  near(A.cellWd(), 14.33, 1e-9, "fixed mode should use the given cell");
+  near(A.mgX(), 0.965, 1e-3, "fixed mode should centre the leftover as margin");
+  near(A.gridW() + 2 * A.mgX(), VALS.tblW, 1e-9, "fixed mode grid + margins equal the table");
+
+  // impossible settings must be reported, not drawn
+  A.SIZ.mode = "fit"; VALS.marX = 29;
+  check(A.gridProblem() !== null, "an impossible margin should be reported");
+  VALS.marX = 0.965;
+  check(A.gridProblem() === null, "a workable margin should not be flagged");
+  A.SIZ.mode = "fixed"; VALS.cellW = 40;
+  check(A.gridProblem() !== null, "a cell too big for the table should be reported");
+  VALS.cellW = 14.33; A.SIZ.mode = "fit";
+  check(A.gridProblem() === null, "back to a workable grid");
+  console.log("  ok  gap and margin drive the grid in both directions, and overflow is caught");
+}
 
 /* ---- the isometric inverse must exactly undo the projection ---- */
 {
