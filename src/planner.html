@@ -742,6 +742,75 @@ function elevMenu(i, ax, ay, maxX, maxY){
           l===0 ? "Mat  flat" : "L"+l+"  "+elevIn(l).toFixed(2)+"″"}</text></g>`;
     }).join("")}</g>`;
 }
+/* Painter order for the isometric view.
+
+   The view axis is the direction this projection collapses. From
+   sx = (x−y)·C and sy = (x+y)·S − z·ZS, that axis is (1, 1, 2S/ZS) — so
+   depth = x + y + KZ·z, and a point is nearer the camera the larger it is.
+   Height therefore DOES count toward depth, at KZ = 0.8 per inch: a 4.5 in
+   riser is worth about 2.5 in of footprint, enough to flip the order of two
+   adjacent tiles even though footprint dominates overall.
+
+   What matters for a box is its NEAREST corner, (x2, y2, h) — measured in
+   inches, so footprint and height are in the same units. Sorting on the
+   tile's grid origin instead is what produced the overlap bug: a long slab
+   has a small origin sum, so it drew early, and smaller mats behind it, with
+   larger origin sums, then painted over its face. */
+const ISOKZ = 2 * ISO.S / ISO.ZS;
+
+/* ...but no ordering of whole tiles can be right. A slab spanning the table
+   interleaves in depth with a tile in front of it: the slab's right end is
+   nearer than that tile, its left end is further, so whichever is drawn
+   second is wrong somewhere. Sorting by the tile's near corner and by its
+   grid origin fail in opposite directions, and both are visible.
+
+   So draw per half-module CELL instead. Every primitive is then the same
+   footprint, and equal-size boxes on a regular grid do admit one correct
+   order — nearest corner, height included. A tile's slab gets split across
+   the order, its far cells drawn before the tile in front and its near cells
+   after, which is exactly right.
+
+   To keep it reading as one solid mat rather than a row of blocks, a cell
+   draws a wall only where it sits on the tile's boundary, its top face
+   carries no outline, and the outline is stroked as separate edges — again
+   only along the tile's boundary. Cells inside a tile also stretch across
+   the gap to their neighbour, so no seam shows. */
+function isoCellDepth(cx, cy, z){
+  return (colX(cx) + hw()) + (rowY(cy) + hd()) + ISOKZ * z;
+}
+function isoPrims(tiles){
+  const out = [];
+  tiles.forEach((t, ti)=>{
+    const z = elevIn(t.elev);
+    for (let cx = t.x; cx < t.x + t.w; cx++)
+      for (let cy = t.y; cy < t.y + t.h; cy++){
+        const lastX = cx === t.x + t.w - 1, lastY = cy === t.y + t.h - 1;
+        const x1 = colX(cx), y1 = rowY(cy);
+        /* Interior cells bridge the gap to their neighbour AND overlap it by
+           a hair. Abutting SVG polygons of the same colour still leave a
+           hairline seam from antialiasing, which drew a grid across every
+           tile. The overlap plus a hairline stroke in the fill's own colour
+           (below) closes it for good, and both are far below anything the
+           drawing or the cut files resolve. The tile's outer edges get no
+           such padding, so its true footprint is unchanged. */
+        const SEAM = 0.06;
+        out.push({
+          ti, t, z,
+          x1, y1,
+          x2: x1 + hw() + (lastX ? 0 : gut() + SEAM),
+          y2: y1 + hd() + (lastY ? 0 : gut() + SEAM),
+          wallR: lastX, wallF: lastY,               // walls only on the boundary
+          edgeL: cx === t.x, edgeB: cy === t.y,     // outline only on the boundary
+          edgeR: lastX, edgeF: lastY,
+          anchor: cx === t.x && cy === t.y,         // where the badge hangs
+          key: isoCellDepth(cx, cy, z),
+        });
+      }
+  });
+  out.sort((a,b)=> a.key - b.key || a.ti - b.ti);
+  return out;
+}
+
 const HSZ = 1.5;              // resize handle size, drawing units
 const handleSVG = (i, cx, cy, tag, cur) => `<rect class="handle" data-i="${i}" data-h="${tag}"
   x="${(cx-HSZ/2).toFixed(3)}" y="${(cy-HSZ/2).toFixed(3)}" width="${HSZ}" height="${HSZ}"
@@ -890,26 +959,56 @@ function drawView(){
       g.push(`<polygon points="${dstr([P(a,b,0),P(a2,b,0),P(a2,b2,0),P(a,b2,0)])}"
         fill="none" stroke="var(--grid)" stroke-width="0.09" stroke-dasharray="0.5 0.4"/>`);
     }
-    // tiles, far to near
-    const order = TILES.slice().sort((a,b)=>(a.x+a.y)-(b.x+b.y));
-    order.forEach(t=>{
-      const i = TILES.indexOf(t), on = SEL.has(i);
-      const x1 = colX(t.x), y1 = rowY(t.y), x2 = x1 + tileW(t), y2 = y1 + tileD(t);
-      const z = elevIn(t.elev);
+    // per-cell, far to near
+    isoPrims(TILES).forEach(c=>{
+      const t = c.t, i = c.ti, on = SEL.has(i), z = c.z;
+      const {x1,y1,x2,y2} = c;
       const top = [P(x1,y1,z),P(x2,y1,z),P(x2,y2,z),P(x1,y2,z)];
       top.forEach(p=>pts.push(p));
-      const faces = [];
+      const sw = on ? 0.4 : 0.2, sc = on ? "var(--sel)" : "var(--ink-3)";
+      const faces = [], wallEdges = [];
       if (z > 0){
-        const right = [P(x2,y1,z),P(x2,y2,z),P(x2,y2,0),P(x2,y1,0)];
-        const front = [P(x1,y2,z),P(x2,y2,z),P(x2,y2,0),P(x1,y2,0)];
-        [right,front].forEach(p=>p.forEach(q=>pts.push(q)));
-        faces.push(`<polygon points="${dstr(right)}" fill="var(--l${t.elev})" fill-opacity="0.62"
-          stroke="${on?"var(--sel)":"var(--ink-3)"}" stroke-width="${on?0.34:0.18}"/>`);
-        faces.push(`<polygon points="${dstr(front)}" fill="var(--l${t.elev})" fill-opacity="0.8"
-          stroke="${on?"var(--sel)":"var(--ink-3)"}" stroke-width="${on?0.34:0.18}"/>`);
+        /* Opaque, shaded per face rather than translucent. Semi-transparent
+           sides let the table grid read straight through a riser, which made
+           the stacking look broken even where the order was right. */
+        /* Walls get the same treatment as the tops: stroked in their own
+           shade so neighbouring cells fuse, with the outline drawn only along
+           the tile's real edges. Stroking every cell wall in ink instead is
+           what ruled a line down each riser's face. */
+        const shade = pc => `color-mix(in srgb, var(--l${t.elev}) ${pc}%, #000)`;
+        if (c.wallR){
+          const w = [P(x2,y1,z),P(x2,y2,z),P(x2,y2,0),P(x2,y1,0)];
+          w.forEach(q=>pts.push(q));
+          faces.push(`<polygon points="${dstr(w)}" fill="${shade(74)}"
+            stroke="${shade(74)}" stroke-width="0.09"/>`);
+          wallEdges.push([w[2], w[3]]);                       // along the table
+          if (c.edgeB) wallEdges.push([w[0], w[3]]);           // tile's back corner
+          if (c.wallF) wallEdges.push([w[1], w[2]]);           // tile's near corner
+        }
+        if (c.wallF){
+          const w = [P(x1,y2,z),P(x2,y2,z),P(x2,y2,0),P(x1,y2,0)];
+          w.forEach(q=>pts.push(q));
+          faces.push(`<polygon points="${dstr(w)}" fill="${shade(87)}"
+            stroke="${shade(87)}" stroke-width="0.09"/>`);
+          wallEdges.push([w[3], w[2]]);                        // along the table
+          if (c.edgeL) wallEdges.push([w[0], w[3]]);           // tile's left corner
+        }
       }
+      /* Stroked in its OWN fill colour, not "none": abutting polygons each
+         antialias to partial coverage along the shared edge, which drew a
+         faint grid across every tile. A same-colour hairline fills that
+         exactly, while the tile's real outline is stroked separately below. */
       faces.push(`<polygon class="body" points="${dstr(top)}" fill="var(--l${t.elev})"
-        stroke="${on?"var(--sel)":"var(--ink-3)"}" stroke-width="${on?0.5:0.2}" style="cursor:move"/>`);
+        stroke="var(--l${t.elev})" stroke-width="0.09" style="cursor:move"/>`);
+      // then the tile's own outline, edge by edge
+      const E = (a,b) => `<line x1="${a[0].toFixed(3)}" y1="${a[1].toFixed(3)}"
+        x2="${b[0].toFixed(3)}" y2="${b[1].toFixed(3)}" stroke="${sc}"
+        stroke-width="${sw}" stroke-linecap="square" pointer-events="none"/>`;
+      if (c.edgeB) faces.push(E(top[0], top[1]));
+      if (c.edgeR) faces.push(E(top[1], top[2]));
+      if (c.edgeF) faces.push(E(top[2], top[3]));
+      if (c.edgeL) faces.push(E(top[3], top[0]));
+      wallEdges.forEach(([a,b])=>faces.push(E(a,b)));
 
       /* An unselected tile's badge rides inside its own group, so painter
          order occludes it behind anything standing in front — a floating
@@ -922,19 +1021,24 @@ function drawView(){
          it in this projection, so without that a selected-but-occluded tile
          would be uneditable here; select it anywhere (plan, schedule, mix)
          and its controls surface in the isometric view too. */
-      /* Badge at the BACK corner, handle at the FRONT corner: the projection
-         separates those two points along its longest axis, so on a small
-         half-module tile the handle can't sit on top of the badge. */
-      const [bx,by] = P(x1 + tileW(t) * 0.16, y1 + tileD(t) * 0.16, z);
-      const badge = elevBadge(i, bx - 2.3, by - 0.6, t.elev);
-      if (!on) faces.push(badge);
-      g.push(`<g class="tile" data-i="${i}">${faces.join("")}</g>`);
-
-      if (on){
-        const [hx,hy] = P(x2, y2, z);
-        overlay.push(`<g class="tile" data-i="${i}">${
-          handleSVG(i, hx, hy, "se", "nwse-resize")}${badge}</g>`);
+      /* Badge at the tile's BACK corner, handle at its FRONT corner: the
+         projection separates those two points along its longest axis, so on
+         a small half-module tile the handle can't sit on top of the badge.
+         Both belong to the tile, not the cell, so they're emitted once — the
+         badge on the tile's back cell, where it sits in the painter order and
+         gets occluded by anything genuinely in front of it. */
+      if (c.anchor){
+        const tx = colX(t.x), ty = rowY(t.y);
+        const [bx,by] = P(tx + tileW(t) * 0.16, ty + tileD(t) * 0.16, z);
+        const badge = elevBadge(i, bx - 2.3, by - 0.6, t.elev);
+        if (!on) faces.push(badge);
+        else {
+          const [hx,hy] = P(tx + tileW(t), ty + tileD(t), z);
+          overlay.push(`<g class="tile" data-i="${i}">${
+            handleSVG(i, hx, hy, "se", "nwse-resize")}${badge}</g>`);
+        }
       }
+      g.push(`<g class="tile" data-i="${i}">${faces.join("")}</g>`);
     });
 
     // drag ghost, in the plane of the tile being dragged

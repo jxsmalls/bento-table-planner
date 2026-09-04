@@ -44,6 +44,7 @@ return {
   render, spec, problems, net, bandParts, pack, exportSVG, elevIn, gridW, gridD,
   isoP, isoInv, cellFromInches, colX, rowY, halfOf, cellWv, cellDv, gut,
   SIZ, hw, hd, spanW, spanD, cellWd, cellDd, mgX, mgY, marX, marY, gridProblem,
+  isoPrims, isoCellDepth, ISO, ISOKZ, tileW, tileD, elevIn, colX, rowY, hw, hd,
 };`)(VALS);
 
 let fails = 0;
@@ -214,6 +215,146 @@ console.log("  ok  oversize parts on a small bed are reported, not silently drop
   VALS.cellW = 14.33; A.SIZ.mode = "fit";
   check(A.gridProblem() === null, "back to a workable grid");
   console.log("  ok  gap and margin drive the grid in both directions, and overflow is caught");
+}
+
+/* ---- isometric painter order, checked by ray-casting the real faces ----
+
+   For a screen point, the world points that project to it form a line. From
+   sx = (x-y)*C and sy = (x+y)*S - z*ZS, parametrising by z:
+       x - y = sx/C ,  x + y = (sy + z*ZS)/S
+   so both x and y grow with z: larger z is nearer the camera. The visible
+   surface at that point is therefore the one with the LARGEST z along the
+   ray. Painter order is correct only if the last tile drawn at each point is
+   that same surface. ------------------------------------------------------ */
+{
+  A.LAY.layout = 4; A.LAY.rows = 3; A.SIZ.mode = "fit";
+  VALS.marX = 0.965; VALS.marY = 0.875; VALS.gutter = 0.25;
+  const {C, S, ZS} = A.ISO;
+
+  const boxOf = t => {
+    const x1 = A.colX(t.x), y1 = A.rowY(t.y);
+    return {x1, y1, x2: x1 + A.tileW(t), y2: y1 + A.tileD(t), h: A.elevIn(t.elev), t};
+  };
+  // world point on the ray through (sx,sy) at height z
+  const at = (sx, sy, z) => {
+    const d = sx / C, m = (sy + z * ZS) / S;
+    return [(m + d) / 2, (m - d) / 2];
+  };
+  // largest z at which this box's surface meets the ray, or null for a miss
+  const hit = (b, sx, sy) => {
+    const IN = (v,a,c) => v >= a - 1e-9 && v <= c + 1e-9;
+    let best = null;
+    // top face, z = h
+    const [tx,ty] = at(sx, sy, b.h);
+    if (IN(tx,b.x1,b.x2) && IN(ty,b.y1,b.y2)) best = b.h;
+    // right face, x = x2  ->  solve for z
+    // x(z) = (sx/C + (sy+z*ZS)/S)/2 = x2
+    let z = ((2*b.x2 - sx/C) * S - sy) / ZS;
+    if (z >= -1e-9 && z <= b.h + 1e-9){
+      const [, yy] = at(sx, sy, z);
+      if (IN(yy,b.y1,b.y2) && (best === null || z > best)) best = z;
+    }
+    // front face, y = y2
+    z = ((2*b.y2 + sx/C) * S - sy) / ZS;
+    if (z >= -1e-9 && z <= b.h + 1e-9){
+      const [xx] = at(sx, sy, z);
+      if (IN(xx,b.x1,b.x2) && (best === null || z > best)) best = z;
+    }
+    return best;
+  };
+
+  const LAYOUTS = {
+    "bento preset": A.presetBento(),
+    "filled grid":  A.presetFill(),
+    "wide slab with mats behind it": [
+      {x:0,y:0,w:2,h:2,elev:0},{x:2,y:0,w:2,h:2,elev:0},{x:4,y:0,w:2,h:2,elev:0},
+      {x:6,y:0,w:2,h:2,elev:0},{x:0,y:2,w:8,h:1,elev:2},
+      {x:0,y:3,w:2,h:1,elev:0},{x:2,y:3,w:2,h:3,elev:3},{x:4,y:3,w:2,h:2,elev:1}],
+    "tall behind flat, and flat behind tall": [
+      {x:0,y:0,w:2,h:2,elev:3},{x:0,y:2,w:2,h:2,elev:0},
+      {x:2,y:0,w:2,h:2,elev:0},{x:2,y:2,w:2,h:2,elev:3},
+      {x:4,y:0,w:4,h:1,elev:1},{x:4,y:1,w:2,h:5,elev:0},{x:6,y:1,w:2,h:2,elev:2}],
+  };
+
+  const audit = (tiles, prims) => {
+    // every drawn primitive is its own little box, in draw order
+    const boxes = prims.map((c,i) => ({
+      x1:c.x1, y1:c.y1, x2:c.x2, y2:c.y2, h:c.z, t:c.t, rank:i,
+    }));
+    const rank = new Map(boxes.map(b => [b, b.rank]));
+    // sample the screen over the drawing's extent
+    const pts = [];
+    boxes.forEach(b => { for (const [x,y] of [[b.x1,b.y1],[b.x2,b.y1],[b.x2,b.y2],[b.x1,b.y2]])
+      for (const z of [0,b.h]) pts.push(A.isoP(x,y,z)); });
+    const xs = pts.map(p=>p[0]), ys = pts.map(p=>p[1]);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs);
+    const y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const N = 150;
+    let bad = 0, covered = 0;
+    for (let i=0;i<N;i++) for (let j=0;j<N;j++){
+      const sx = x0 + (x1-x0)*(i+0.5)/N, sy = y0 + (y1-y0)*(j+0.5)/N;
+      let painter = null, painterRank = -1, truth = null, truthZ = -Infinity;
+      for (const b of boxes){
+        const z = hit(b, sx, sy);
+        if (z === null) continue;
+        if (b.rank > painterRank){ painterRank = b.rank; painter = b.t; }
+        if (z > truthZ + 1e-9){ truthZ = z; truth = b.t; }
+      }
+      if (!painter) continue;
+      covered++;
+      if (painter !== truth) bad++;
+    }
+    return {bad, covered};
+  };
+
+  let totalBad = 0, totalCov = 0;
+  for (const [name, tiles] of Object.entries(LAYOUTS)){
+    A.TILES = tiles;
+    const now = audit(tiles, A.isoPrims(tiles));
+    totalBad += now.bad; totalCov += now.covered;
+    if (now.bad) console.log(`  FAIL ${name}: ${now.bad} of ${now.covered} covered pixels show the wrong tile`);
+  }
+  check(totalBad === 0, `${totalBad} of ${totalCov} sampled pixels painted the wrong tile`);
+  console.log(`  ok  ${totalCov} sampled pixels across 4 layouts, every one shows the frontmost surface`);
+
+  // the test must catch the whole-tile orderings this replaced, or it proves
+  // nothing. Both of them: sorting by grid origin, and by nearest corner.
+  const wholeTile = keyFn => tiles => tiles.slice().sort((a,b)=>keyFn(a)-keyFn(b))
+    .map(t => ({t, z: A.elevIn(t.elev),
+                x1: A.colX(t.x), y1: A.rowY(t.y),
+                x2: A.colX(t.x) + A.tileW(t), y2: A.rowY(t.y) + A.tileD(t)}));
+  const byOrigin = wholeTile(t => t.x + t.y);
+  const byNear   = wholeTile(t => (A.colX(t.x) + A.tileW(t)) + (A.rowY(t.y) + A.tileD(t))
+                                  + A.ISOKZ * A.elevIn(t.elev));
+  let oldBad = 0, nearBad = 0;
+  for (const tiles of Object.values(LAYOUTS)){
+    A.TILES = tiles;
+    oldBad  += audit(tiles, byOrigin(tiles)).bad;
+    nearBad += audit(tiles, byNear(tiles)).bad;
+  }
+  check(oldBad > 0,  "the ray-cast test does not reproduce the grid-origin bug");
+  check(nearBad > 0, "the ray-cast test does not reproduce the nearest-corner bug");
+  console.log(`  ok  reproduces both whole-tile orderings it replaced: `
+    + `grid-origin mispainted ${oldBad} px, nearest-corner ${nearBad} px`);
+
+  // a tile split into cells must still cover exactly its own footprint
+  for (const tiles of Object.values(LAYOUTS)){
+    A.TILES = tiles;
+    const prims = A.isoPrims(tiles);
+    tiles.forEach((t, ti) => {
+      const mine = prims.filter(c => c.ti === ti);
+      check(mine.length === t.w * t.h, `tile ${ti} split into ${mine.length}, want ${t.w*t.h}`);
+      const x1 = Math.min(...mine.map(c=>c.x1)), x2 = Math.max(...mine.map(c=>c.x2));
+      const y1 = Math.min(...mine.map(c=>c.y1)), y2 = Math.max(...mine.map(c=>c.y2));
+      check(Math.abs((x2-x1) - A.tileW(t)) < 1e-9, `tile ${ti} cells span the wrong width`);
+      check(Math.abs((y2-y1) - A.tileD(t)) < 1e-9, `tile ${ti} cells span the wrong depth`);
+      // exactly one wall along each boundary run, and one badge anchor
+      check(mine.filter(c=>c.wallR).length === t.h, `tile ${ti} wrong right-wall count`);
+      check(mine.filter(c=>c.wallF).length === t.w, `tile ${ti} wrong front-wall count`);
+      check(mine.filter(c=>c.anchor).length === 1, `tile ${ti} should have one badge anchor`);
+    });
+  }
+  console.log("  ok  cell subdivision covers each tile exactly, with walls only on its boundary");
 }
 
 /* ---- the isometric inverse must exactly undo the projection ---- */
