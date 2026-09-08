@@ -1290,7 +1290,7 @@ function render(){
         rows.push(["Top panel", `${toIn(s.wp).toFixed(3)} × ${toIn(s.dp).toFixed(3)}`, "drops between the walls"]);
         rows.push(["Wall flat height", `${toIn(s.hf).toFixed(3)}`, "target height less one thickness"]);
         rows.push(["Flat net", `${toIn(ps[0].size[0]).toFixed(2)} × ${toIn(ps[0].size[1]).toFixed(2)}`, "bounding box on the sheet"]);
-        rows.push(["Glue tabs", `4 × ${s.tab.toFixed(0)} mm`, "fold in, glue inside the end walls"]);
+        rows.push(["Glue joints", "4", `4 corner tabs of ${s.tab.toFixed(0)} mm, folded in and hidden`]);
       } else {
         const runA = s.wExt-2*s.t, runB = s.dExt-2*s.t;
         rows.push(["Top panel", `${toIn(s.wExt).toFixed(3)} × ${toIn(s.dExt).toFixed(3)}`, "caps the walls, edges flush"]);
@@ -1301,7 +1301,30 @@ function render(){
           rows.push(["Long wall × 2", `${toIn(s.wExt).toFixed(3)} long`, "plain rectangle, no folds"]);
           rows.push(["End wall × 2", `${toIn(runB+2*s.tab).toFixed(3)} overall`, `fold ${s.tab.toFixed(0)} mm in from each end`]);
         }
+        /* Count the panel-to-band bond, not just the corner tabs. Reporting
+           only the tabs understates the work for a construction whose whole
+           point is that the top is a separate piece. */
+        const corners = sc === "L2" ? 2 : sc === "W4" ? 4 : 6;
+        rows.push(["Glue joints", `${corners} + 1`,
+          `${corners} corner tab${corners===1?"":"s"} (hidden inside), plus the top panel bonded onto the band`]);
       }
+
+      /* Why this construction and not the other — the question the piece
+         count provokes, answered where it's asked. */
+      const gp2 = +$("gap").value;
+      const nOne = perSheet(()=>[net(s)], sheet, gp2, 16);
+      const nBand = perSheet(()=>bandParts(s, sheet), sheet, gp2, 16);
+      const netW = toIn(net(s).size[0]), netH = toIn(net(s).size[1]);
+      rows.push([
+        `Why ${mode === "one-piece" ? "one piece" : ps.length + " pieces"}`,
+        MODE === "auto" ? "best per sheet" : "you chose it",
+        mode === "one-piece"
+          ? `One-piece nests ${nOne}/sheet vs ${nBand} for panel + walls. Its flat net is `
+            + `${netW.toFixed(1)} × ${netH.toFixed(1)}″ — footprint plus twice the height, each way.`
+          : `Panel + walls nests ${nBand}/sheet vs ${nOne} for one-piece, on about the same board. `
+            + `The one-piece net would be ${netW.toFixed(1)} × ${netH.toFixed(1)}″ — footprint plus twice `
+            + `the height each way — which packs badly. Force one piece under Construction below.`,
+      ]);
       const rb = ribs(s);
       rows.push(["Optional ribs", `${toIn(rb[0].size[0]).toFixed(2)} and ${toIn(rb[1].size[0]).toFixed(2)} long`,
         `${toIn(rb[0].size[1]).toFixed(2)}″ tall, slot cut ${(s.t-s.kerf).toFixed(2)} mm for ${s.t} mm stock`]);
