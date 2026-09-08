@@ -63,9 +63,10 @@ header .sub{color:var(--ink-2); font-size:13.5px; max-width:64ch; margin:0}
 @media (max-width:1180px){.setup{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (max-width:760px){.setup{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .trio{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; margin-top:5px}
-.trio label{display:block; font-family:"Archivo Narrow",sans-serif; font-size:9.5px;
+.duo{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px; margin-top:5px}
+.trio label,.duo label{display:block; font-family:"Archivo Narrow",sans-serif; font-size:9.5px;
   letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); margin-bottom:2px}
-.trio input:disabled{opacity:.55; cursor:not-allowed}
+.trio input:disabled,.duo input:disabled{opacity:.55; cursor:not-allowed}
 .card .warn{color:var(--cut)}
 .card{background:var(--surface); border:1px solid var(--line-2); border-top:3px solid var(--line-2);
   border-radius:var(--r); padding:8px 11px 10px}
@@ -201,6 +202,12 @@ button:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visi
   <div class="card">
     <div class="k">Sheet or bed</div>
     <select id="sheet"></select>
+    <div class="duo">
+      <div><label for="shW">Width</label>
+        <input type="number" id="shW" value="32" step="0.5" min="2"></div>
+      <div><label for="shH">Height</label>
+        <input type="number" id="shH" value="40" step="0.5" min="2"></div>
+    </div>
     <div class="n" id="sheetn"></div>
   </div>
   <div class="card">
@@ -392,7 +399,9 @@ const MATERIALS = {
   "chipboard 2 mm": {t:2.0, sheet:"Chipboard 30 × 40", note:"score deep, ~60% of thickness"},
   "bristol 0.5 mm": {t:0.5, sheet:"Bristol 23 × 29", note:"mockups only above ~2 in tall"},
 };
+const CUSTOM = "Custom size…";
 const SHEETS = {
+  [CUSTOM]:            null,          // whatever is typed in the two fields
   "Matboard 32 × 40":  [32,40], "Matboard 40 × 60": [40,60],
   "Chipboard 30 × 40": [30,40], "Bristol 23 × 29":  [23,29],
   "Ply 24 × 48":       [24,48],
@@ -1115,9 +1124,21 @@ function drawView(){
 }
 
 /* ============================ rollup ============================ */
+/* The two fields are the sheet, always — a preset just fills them in, and
+   typing over one flips the select to Custom. That keeps a custom bed a
+   first-class setup rather than an override buried in the advanced panel. */
+const num = (id, fallback) => {
+  /* An emptied or nonsense field falls back to the default rather than to
+     zero — mid-typing a dimension shouldn't collapse the sheet. */
+  const raw = String($(id).value ?? "").trim();
+  if (!raw) return fallback;
+  const v = +raw;
+  return Number.isFinite(v) ? v : fallback;
+};
+const sheetDims = () => [Math.max(2, num("shW", 32)), Math.max(2, num("shH", 40))];
 const sheetOf = () => {
-  const s = SHEETS[$("sheet").value];
-  return [inch(Math.min(s[0], +$("BW").value)), inch(Math.min(s[1], +$("BH").value))];
+  const [w,h] = sheetDims();
+  return [inch(Math.min(w, +$("BW").value)), inch(Math.min(h, +$("BH").value))];
 };
 /* group risers into SKUs by footprint + elevation */
 function skus(){
@@ -1184,8 +1205,13 @@ function render(){
   $("planstage").innerHTML = drawPlan();
   $("viewstage").innerHTML = drawView();
   $("layoutn").textContent = `${cellWd().toFixed(2)} × ${cellDd().toFixed(2)} in cell · ${HC()}×${HR()} half-modules`;
-  const shv = SHEETS[$("sheet").value];
-  $("sheetn").textContent = `${shv[0]} × ${shv[1]} in`;
+  const [shw, shh] = sheetDims();
+  const shv = [shw, shh];
+  const eff = sheetOf();
+  const clamped = Math.abs(toIn(eff[0]) - shw) > 1e-6 || Math.abs(toIn(eff[1]) - shh) > 1e-6;
+  $("sheetn").innerHTML = clamped
+    ? `<span class="warn">bed clamp cuts this to ${toIn(eff[0]).toFixed(1)} × ${toIn(eff[1]).toFixed(1)} in</span>`
+    : `${shw} × ${shh} in usable`;
   $("matn").textContent = `${MATERIALS[$("mat").value].t} mm · ${MATERIALS[$("mat").value].note}`;
   $("viewnote").textContent = VIEW === "iso" ? "risers shown at their true elevation"
     : VIEW === "front" ? "looking across the table's width" : "looking along the table's depth";
@@ -1355,7 +1381,7 @@ function render(){
 
   /* --- cut sheets --- */
   $("t-sheets").textContent = sheets.length
-    ? `${risers} riser${risers===1?"":"s"} → ${sheets.length} sheet${sheets.length===1?"":"s"} of ${shv[0]} × ${shv[1]} in · ${(sqIn(cutA)/144).toFixed(1)} sq ft${unplaced.length?` · ${unplaced.length} parts won't fit`:""}`
+    ? `${risers} riser${risers===1?"":"s"} → ${sheets.length} sheet${sheets.length===1?"":"s"} of ${toIn(eff[0]).toFixed(1)} × ${toIn(eff[1]).toFixed(1)} in · ${(sqIn(cutA)/144).toFixed(1)} sq ft${unplaced.length?` · ${unplaced.length} parts won't fit`:""}`
     : "no risers yet — set a tile to an elevation";
   if (sheets.length){
     /* one tab per sheet, so a multi-sheet job is obvious and every sheet's
@@ -1380,22 +1406,45 @@ function render(){
 }
 
 /* ============================ wiring ============================ */
+let pending = 0;
+const later = () => { clearTimeout(pending); pending = setTimeout(render, 120); };
 Object.keys(MATERIALS).forEach(k=>{
   const o=document.createElement("option"); o.value=k; o.textContent=k; $("mat").appendChild(o);
 });
 Object.keys(SHEETS).forEach(k=>{
   const o=document.createElement("option"); o.value=k; o.textContent=k; $("sheet").appendChild(o);
 });
+function syncSheetLabel(){
+  const [w,h] = sheetDims();
+  const hit = Object.entries(SHEETS).find(([,v]) => v && v[0] === w && v[1] === h);
+  $("sheet").value = hit ? hit[0] : CUSTOM;
+}
 $("mat").addEventListener("change", ()=>{
   const m = MATERIALS[$("mat").value];
   $("t").value = m.t; $("sheet").value = m.sheet;
-  const s = SHEETS[m.sheet]; $("BW").value = s[0]; $("BH").value = s[1];
+  const s = SHEETS[m.sheet];
+  if (s) applySheet(s[0], s[1]);
   render();
 });
+function applySheet(w, h){
+  $("shW").value = w; $("shH").value = h;
+  $("BW").value = w; $("BH").value = h;   // clamp follows unless you change it
+  SHEETIDX = 0;
+}
 $("sheet").addEventListener("change", ()=>{
-  const s = SHEETS[$("sheet").value];
-  $("BW").value = s[0]; $("BH").value = s[1]; SHEETIDX = 0; render();
+  const preset = SHEETS[$("sheet").value];
+  if (preset) applySheet(preset[0], preset[1]);   // Custom keeps whatever is typed
+  render();
 });
+/* Typing a dimension makes it custom. Matching a preset exactly selects that
+   preset instead, so the label never lies about what is loaded. */
+["shW","shH"].forEach(id=>$(id).addEventListener("input", ()=>{
+  syncSheetLabel();
+  const [w,h] = sheetDims();
+  $("BW").value = w; $("BH").value = h;
+  SHEETIDX = 0;
+  later();
+}));
 ["layout","rowsn"].forEach(id=>$(id).addEventListener("change", ()=>{
   LAY.layout = +$("layout").value; LAY.rows = +$("rowsn").value;
   TILES = TILES.filter(fitsGrid); SEL.clear(); render();
@@ -1622,8 +1671,6 @@ $("sizmode").addEventListener("click", e=>{
   [...$("sizmode").children].forEach(c=>c.setAttribute("aria-pressed", c === b));
   render();
 });
-let pending = 0;
-const later = () => { clearTimeout(pending); pending = setTimeout(render, 120); };
 $("d-adv").addEventListener("input", later);
 ["tblW","tblD","gutter","marX","marY"].forEach(id=>$(id).addEventListener("input", later));
 
@@ -1666,6 +1713,7 @@ $("sh").addEventListener("click", e=>{
 });
 
 TILES = presetBento();
+syncSheetLabel();
 $("d-sheets").open = false;
 render();
 </script>

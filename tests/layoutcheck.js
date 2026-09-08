@@ -13,7 +13,7 @@ const VALS = {
   cellW:14.33, cellW3:19.25, cellD:13.25, gutter:0.25,
   e1:1.5, e2:3, e3:4.5, t:1.5, kerf:0.15, tab:22, gap:3,
   marX:0.965, marY:0.875,
-  W:14.33, D:13.25, H:3, SW:32, SH:40, BW:32, BH:40,
+  W:14.33, D:13.25, H:3, SW:32, SH:40, BW:32, BH:40, shW:32, shH:40,
   tblW:60, tblD:42, layout:4, rowsn:3,
   mat:"matboard 4-ply", sheet:"Matboard 32 × 40",
 };
@@ -45,6 +45,7 @@ return {
   isoP, isoInv, cellFromInches, colX, rowY, halfOf, cellWv, cellDv, gut,
   SIZ, hw, hd, spanW, spanD, cellWd, cellDd, mgX, mgY, marX, marY, gridProblem,
   isoPrims, isoCellDepth, ISO, ISOKZ, tileW, tileD, elevIn, colX, rowY, hw, hd,
+  sheetOf, sheetDims, CUSTOM, SHEETS,
 };`)(VALS);
 
 let fails = 0;
@@ -215,6 +216,46 @@ console.log("  ok  oversize parts on a small bed are reported, not silently drop
   VALS.cellW = 14.33; A.SIZ.mode = "fit";
   check(A.gridProblem() === null, "back to a workable grid");
   console.log("  ok  gap and margin drive the grid in both directions, and overflow is caught");
+}
+
+/* ---- the sheet comes from the two fields, custom or preset ---- */
+{
+  VALS.shW = 32; VALS.shH = 40; VALS.BW = 32; VALS.BH = 40;
+  let [w,h] = A.sheetDims();
+  check(w === 32 && h === 40, `sheet fields should read 32x40, got ${w}x${h}`);
+
+  // a custom size must actually reach the packer
+  VALS.shW = 27.5; VALS.shH = 19.25; VALS.BW = 27.5; VALS.BH = 19.25;
+  const sh = A.sheetOf();
+  near(sh[0] / 25.4, 27.5, 1e-9, "a custom width must reach the packer");
+  near(sh[1] / 25.4, 19.25, 1e-9, "a custom height must reach the packer");
+
+  // the bed clamp still wins when it is smaller than the stock
+  VALS.shW = 40; VALS.shH = 60; VALS.BW = 32; VALS.BH = 20;
+  const cl = A.sheetOf();
+  near(cl[0] / 25.4, 32, 1e-9, "the bed clamp must cap a bigger sheet");
+  near(cl[1] / 25.4, 20, 1e-9, "the bed clamp must cap a bigger sheet");
+
+  // an emptied or nonsense field must fall back, never produce NaN
+  for (const bad of ["", "abc", null, undefined, NaN]){
+    VALS.shW = bad; VALS.shH = bad;
+    const [bw, bh] = A.sheetDims();
+    check(Number.isFinite(bw) && Number.isFinite(bh) && bw >= 2 && bh >= 2,
+          `an empty sheet field gave ${bw}x${bh}`);
+    const s2 = A.sheetOf();
+    check(Number.isFinite(s2[0]) && Number.isFinite(s2[1]),
+          "sheetOf must never return NaN");
+  }
+  // Custom must be an offered option with no fixed dimensions of its own
+  check(A.CUSTOM in A.SHEETS, "Custom should be one of the sheet options");
+  check(A.SHEETS[A.CUSTOM] === null, "Custom must not carry fixed dimensions");
+  const presets = Object.entries(A.SHEETS).filter(([,v]) => v);
+  check(presets.length >= 8, `expected the preset list to survive, got ${presets.length}`);
+  presets.forEach(([k,v]) => check(v.length === 2 && v[0] > 0 && v[1] > 0, `preset ${k} is malformed`));
+
+  VALS.shW = 32; VALS.shH = 40; VALS.BW = 32; VALS.BH = 40;
+  console.log(`  ok  sheet reads from its fields, custom sizes reach the packer, `
+    + `the bed clamp still caps, and ${presets.length} presets remain`);
 }
 
 /* ---- isometric painter order, checked by ray-casting the real faces ----
